@@ -43,7 +43,7 @@ func (t *network) Wait(timeMs int) (fds []int, n int, err error) {
 	if timeMs > 1000 {
 		t.timeout.Sec = int64(timeMs / 1000)
 	}
-	t.timeout.Nsec = int64(timeMs % 1000)
+	t.timeout.Nsec = int64(timeMs%1000) * 100000
 
 	n, err = syscall.Kevent(t.kq, t.changes, t.events, t.timeout)
 	if err != nil {

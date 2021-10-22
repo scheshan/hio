@@ -51,7 +51,7 @@ func (t *EventLoop) handleNewConnection() {
 }
 
 func (t *EventLoop) handleIOEvents() {
-	fds, n, err := t.network.Wait(5000)
+	fds, n, err := t.network.Wait(100)
 	if err != nil {
 		panic(err)
 	}
