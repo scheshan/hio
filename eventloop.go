@@ -64,46 +64,53 @@ func (t *EventLoop) handleIOEvents() {
 		fd := fds[i]
 		conn := t.connMap[fd]
 		if conn != nil {
-			t.readConn(conn)
-			t.writeConn(conn)
+			if err := t.readConn(conn); err != nil {
+				t.closeConn(conn)
+			}
+			if err := t.writeConn(conn); err != nil {
+				t.closeConn(conn)
+			}
 		}
 	}
 }
 
-func (t *EventLoop) readConn(conn *Conn) {
+func (t *EventLoop) readConn(conn *Conn) error {
 	log.Printf("连接读取事件")
 
 	n, err := syscall.Read(conn.fd, conn.in)
 	if err != nil {
-		if err != syscall.EAGAIN {
-			t.closeConn(conn)
+		if err == syscall.EAGAIN {
+			return nil
 		}
-		return
+		return err
 	}
 
 	if n > 0 {
 		conn.Write(conn.in[0:n])
 	}
+
+	return nil
 }
 
-func (t *EventLoop) writeConn(conn *Conn) {
+func (t *EventLoop) writeConn(conn *Conn) error {
 	if len(conn.out) == 0 {
-		return
+		return nil
 	}
 
 	log.Printf("%v 个字节需要写入", len(conn.out))
 
 	n, err := syscall.Write(conn.fd, conn.out)
 	if err != nil {
-		if err != syscall.EAGAIN {
-			t.closeConn(conn)
+		if err == syscall.EAGAIN {
+			return nil
 		}
-		return
+		return err
 	}
 
 	if n > 0 {
 		conn.out = conn.out[n:]
 	}
+	return nil
 }
 
 func (t *EventLoop) closeConn(conn *Conn) {
