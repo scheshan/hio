@@ -40,6 +40,13 @@ func (t *Server) listen() error {
 		return err
 	}
 
+	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		return err
+	}
+	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1); err != nil {
+		return err
+	}
+
 	sa := &syscall.SockaddrInet4{
 		Port: t.port,
 	}
@@ -48,14 +55,6 @@ func (t *Server) listen() error {
 	}
 
 	if err = syscall.Listen(fd, 1024); err != nil {
-		return err
-	}
-
-	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
-		return err
-	}
-
-	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1); err != nil {
 		return err
 	}
 
