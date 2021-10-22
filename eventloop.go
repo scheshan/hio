@@ -52,7 +52,7 @@ func (t *EventLoop) handleNewConnection() {
 
 func (t *EventLoop) handleIOEvents() {
 	fds, n, err := t.network.Wait(100)
-	if err != nil {
+	if err != nil && err != syscall.EINTR {
 		panic(err)
 	}
 
