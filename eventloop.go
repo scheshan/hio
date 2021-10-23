@@ -13,14 +13,15 @@ type EventLoop struct {
 	network        Network
 }
 
-func (t *EventLoop) accept(fd int, addr syscall.Sockaddr) {
+func (t *EventLoop) accept(id int, fd int, addr syscall.Sockaddr) {
 	err := syscall.SetNonblock(fd, true)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	conn := newConn(t, fd, addr)
+	conn := newConn(t, id, fd, addr)
+	log.Printf("New connection %s bind to eventloop %v", conn, t.idx)
 	t.newConnections = append(t.newConnections, conn)
 }
 
@@ -87,6 +88,7 @@ func (t *EventLoop) readConn(conn *Conn) error {
 
 	if n > 0 {
 		conn.Write(conn.in[0:n])
+		conn.Close()
 	}
 
 	return nil
@@ -110,11 +112,28 @@ func (t *EventLoop) writeConn(conn *Conn) error {
 	if n > 0 {
 		conn.out = conn.out[n:]
 	}
+
+	if conn.state == ConnState_Close {
+		t.tryCloseConn(conn)
+	}
+
 	return nil
 }
 
+func (t *EventLoop) tryCloseConn(conn *Conn) {
+	if len(conn.out) > 0 {
+		return
+	}
+
+	t.closeConn(conn)
+}
+
 func (t *EventLoop) closeConn(conn *Conn) {
-	syscall.Close(conn.fd)
+	err := syscall.Close(conn.fd)
+	if err != nil {
+		log.Printf("close connection failed: %v", err)
+	}
+	delete(t.connMap, conn.fd)
 }
 
 func newEventLoop(srv *Server, idx int) *EventLoop {

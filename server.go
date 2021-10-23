@@ -13,6 +13,7 @@ type Server struct {
 	lb      LoadBalancer
 	fd      int
 	running int32
+	connId  int
 }
 
 func (t *Server) Run() error {
@@ -73,8 +74,10 @@ func (t *Server) accept() {
 			log.Fatal(err)
 		}
 
+		t.connId++
+
 		loop := t.lb.Choose(t.loops)
-		loop.accept(fd, addr)
+		loop.accept(t.connId, fd, addr)
 	}
 }
 
