@@ -6,15 +6,22 @@ import (
 )
 
 type LoadBalancer interface {
-	Choose(loops []*EventLoop) *EventLoop
+	Initialize(loops []*EventLoop)
+	Choose() *EventLoop
 }
 
 type lbRoundRobin struct {
-	idx int32
+	idx   int32
+	loops []*EventLoop
 }
 
-func (t *lbRoundRobin) Choose(loops []*EventLoop) *EventLoop {
+func (t *lbRoundRobin) Initialize(loops []*EventLoop) {
+	t.loops = loops
+}
+
+func (t *lbRoundRobin) Choose() *EventLoop {
 	var loop *EventLoop
+	loops := t.loops
 
 	for loop == nil {
 		idx := t.idx + 1
@@ -30,9 +37,16 @@ func (t *lbRoundRobin) Choose(loops []*EventLoop) *EventLoop {
 }
 
 type lbRandom struct {
+	loops []*EventLoop
 }
 
-func (t *lbRandom) Choose(loops []*EventLoop) *EventLoop {
+func (t *lbRandom) Initialize(loops []*EventLoop) {
+	t.loops = loops
+}
+
+func (t *lbRandom) Choose() *EventLoop {
+	loops := t.loops
+
 	idx := rand.Intn(len(loops))
 	return loops[idx]
 }

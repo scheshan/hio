@@ -136,6 +136,10 @@ func (t *EventLoop) closeConn(conn *Conn) {
 	delete(t.connMap, conn.fd)
 }
 
+func (t *EventLoop) connCount() int {
+	return len(t.connMap)
+}
+
 func newEventLoop(srv *Server, idx int) *EventLoop {
 	loop := &EventLoop{}
 	loop.idx = idx

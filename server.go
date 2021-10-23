@@ -76,7 +76,7 @@ func (t *Server) accept() {
 
 		t.connId++
 
-		loop := t.lb.Choose(t.loops)
+		loop := t.lb.Choose()
 		loop.accept(t.connId, fd, addr)
 	}
 }
@@ -90,9 +90,10 @@ func (t *Server) initEventLoop(num int) {
 
 func NewServer() *Server {
 	srv := &Server{}
-	srv.lb = &lbRoundRobin{}
 	srv.port = 6379
 	srv.initEventLoop(1)
+	srv.lb = &lbRoundRobin{}
+	srv.lb.Initialize(srv.loops)
 
 	return srv
 }
