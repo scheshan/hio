@@ -19,6 +19,7 @@ type Server struct {
 	running  int32
 	connId   int
 	listener *Listener
+	opts     *ServerOptions
 }
 
 func (t *Server) Run() error {
@@ -93,12 +94,28 @@ func (t *Server) initEventLoop(num int) {
 	}
 }
 
-func NewServer() *Server {
+func NewServer(opts *ServerOptions) *Server {
 	srv := &Server{}
-	srv.port = 6379
-	srv.initEventLoop(1)
-	srv.lb = &lbRoundRobin{}
+	srv.opts = opts
+	srv.port = opts.Port
+
+	loopNum := int(opts.LoopNum)
+	if loopNum <= 0 {
+		loopNum = 4
+	}
+	srv.initEventLoop(loopNum)
+
+	switch opts.LoadBalance {
+	case "rand":
+		srv.lb = &lbRandom{}
+		break
+	default:
+		srv.lb = &lbRoundRobin{}
+		break
+	}
 	srv.lb.Initialize(srv.loops)
+
+	srv.listener = opts.Listener
 
 	return srv
 }

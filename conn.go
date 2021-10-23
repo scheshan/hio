@@ -77,7 +77,7 @@ func newConn(loop *EventLoop, id int, fd int, addr syscall.Sockaddr) *Conn {
 		loop:  loop,
 		fd:    fd,
 		addr:  addr,
-		in:    make([]byte, 4096, 4096),
+		in:    make([]byte, 4, 4),
 		out:   make([]byte, 0, 4096),
 		attrs: make(map[string]interface{}),
 	}
