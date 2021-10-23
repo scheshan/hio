@@ -2,7 +2,9 @@
 
 package hio
 
-import "syscall"
+import (
+	"syscall"
+)
 
 type network struct {
 	kq      int
@@ -12,7 +14,7 @@ type network struct {
 	fds     []int
 }
 
-func (t *network) AddEvents(conns []*Conn) error {
+func (t *network) AddEvents(conns ...*Conn) error {
 	for _, conn := range conns {
 		t.changes = append(
 			t.changes,
@@ -24,15 +26,12 @@ func (t *network) AddEvents(conns []*Conn) error {
 	return nil
 }
 
-func (t *network) RemoveEvents(conns []*Conn) error {
+func (t *network) RemoveEvents(conns ...*Conn) error {
 	for _, conn := range conns {
 		t.changes = append(
 			t.changes,
 			syscall.Kevent_t{
-				Ident: uint64(conn.fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_READ,
-			},
-			syscall.Kevent_t{
-				Ident: uint64(conn.fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_WRITE,
+				Ident: uint64(conn.fd), Flags: syscall.EV_DELETE, Filter: syscall.EVFILT_READ | syscall.EVFILT_WRITE,
 			})
 	}
 

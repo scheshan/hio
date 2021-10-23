@@ -10,7 +10,7 @@ type network struct {
 	fds    []int
 }
 
-func (t *network) AddEvents(conns []*Conn) error {
+func (t *network) AddEvents(conns ...*Conn) error {
 	for _, conn := range conns {
 		if err := syscall.EpollCtl(t.ep, syscall.EPOLL_CTL_ADD, conn.fd, &syscall.EpollEvent{
 			Events: syscall.EPOLLIN | syscall.EPOLLOUT,
@@ -23,7 +23,7 @@ func (t *network) AddEvents(conns []*Conn) error {
 	return nil
 }
 
-func (t *network) RemoveEvents(conns []*Conn) error {
+func (t *network) RemoveEvents(conns ...*Conn) error {
 	for _, conn := range conns {
 		if err := syscall.EpollCtl(t.ep, syscall.EPOLL_CTL_DEL, conn.fd, &syscall.EpollEvent{
 			Events: syscall.EPOLLIN | syscall.EPOLLOUT,

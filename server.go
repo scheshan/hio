@@ -7,13 +7,18 @@ import (
 	"syscall"
 )
 
+type ConnCallback func(conn *Conn, data []byte, n int)
+
+type ConnCallbackType int
+
 type Server struct {
-	port    int
-	loops   []*EventLoop
-	lb      LoadBalancer
-	fd      int
-	running int32
-	connId  int
+	port     int
+	loops    []*EventLoop
+	lb       LoadBalancer
+	fd       int
+	running  int32
+	connId   int
+	listener *Listener
 }
 
 func (t *Server) Run() error {
