@@ -20,6 +20,7 @@ type Server struct {
 	connId   int
 	listener *Listener
 	opts     *ServerOptions
+	mp       *MemoryPool
 }
 
 func (t *Server) Run() error {
@@ -116,6 +117,8 @@ func NewServer(opts *ServerOptions) *Server {
 	srv.lb.Initialize(srv.loops)
 
 	srv.listener = opts.Listener
+
+	srv.mp = NewMemoryPool()
 
 	return srv
 }

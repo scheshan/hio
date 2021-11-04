@@ -12,6 +12,9 @@ type EventLoop struct {
 	connMap        map[int]*Conn
 	newConnections []*Conn
 	network        Network
+	bufIn          []byte
+	bufOut         []byte
+	mp             *MemoryPool
 }
 
 func (t *EventLoop) accept(id int, fd int, addr syscall.Sockaddr) {
@@ -81,7 +84,7 @@ func (t *EventLoop) handleIOEvents() {
 func (t *EventLoop) readConn(conn *Conn) error {
 	log.Printf("连接读取事件")
 
-	n, err := syscall.Read(conn.fd, conn.in)
+	n, err := syscall.Read(conn.fd, t.bufIn)
 	if n == 0 || err != nil {
 		if err == syscall.EAGAIN {
 			return nil
@@ -92,27 +95,27 @@ func (t *EventLoop) readConn(conn *Conn) error {
 		return err
 	}
 
-	t.triggerConnRead(conn, conn.in, n)
+	conn.in.Write(t.bufIn[:n])
+
+	t.triggerConnRead(conn)
 	return nil
 }
 
 func (t *EventLoop) writeConn(conn *Conn) error {
-	if len(conn.out) == 0 {
+	if !conn.out.CanRead() {
 		return nil
 	}
 
-	log.Printf("%v 个字节需要写入", len(conn.out))
-
-	n, err := syscall.Write(conn.fd, conn.out)
+	n, err := conn.out.CopyToFile(conn.fd)
+	if n == 0 {
+		t.closeConn(conn, nil)
+		return nil
+	}
 	if err != nil {
 		if err == syscall.EAGAIN {
 			return nil
 		}
 		return err
-	}
-
-	if n > 0 {
-		conn.out = conn.out[n:]
 	}
 
 	if conn.state == ConnState_Close {
@@ -123,7 +126,7 @@ func (t *EventLoop) writeConn(conn *Conn) error {
 }
 
 func (t *EventLoop) tryCloseConn(conn *Conn) {
-	if len(conn.out) > 0 {
+	if conn.out.CanRead() {
 		return
 	}
 
@@ -160,9 +163,9 @@ func (t *EventLoop) triggerConnClose(conn *Conn, err error) {
 	}
 }
 
-func (t *EventLoop) triggerConnRead(conn *Conn, data []byte, n int) {
+func (t *EventLoop) triggerConnRead(conn *Conn) {
 	if t.srv.listener != nil && t.srv.listener.OnConnRead != nil {
-		t.srv.listener.OnConnRead(conn, data, n)
+		t.srv.listener.OnConnRead(conn)
 	}
 }
 
@@ -172,6 +175,9 @@ func newEventLoop(srv *Server, idx int) *EventLoop {
 	loop.srv = srv
 	loop.connMap = make(map[int]*Conn)
 	loop.newConnections = make([]*Conn, 0)
+	loop.bufIn = make([]byte, 40960)
+	loop.bufOut = make([]byte, 40960)
+	loop.mp = srv.mp
 
 	network, err := newNetwork()
 	if err != nil {

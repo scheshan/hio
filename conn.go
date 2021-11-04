@@ -18,8 +18,8 @@ type Conn struct {
 	loop  *EventLoop
 	fd    int
 	addr  syscall.Sockaddr
-	in    []byte
-	out   []byte
+	in    *Buffer
+	out   *Buffer
 	state ConnState
 	attrs map[string]interface{}
 }
@@ -29,7 +29,8 @@ func (t *Conn) Write(data []byte) error {
 		return errors.New("can't write to a closed connection")
 	}
 
-	t.out = append(t.out, data...)
+	t.out.Write(data)
+
 	return nil
 }
 
@@ -72,13 +73,20 @@ func (t *Conn) EventLoop() *EventLoop {
 }
 
 func newConn(loop *EventLoop, id int, fd int, addr syscall.Sockaddr) *Conn {
+	bufIn := &Buffer{
+		mp: loop.mp,
+	}
+	bufOut := &Buffer{
+		mp: loop.mp,
+	}
+
 	conn := &Conn{
 		id:    id,
 		loop:  loop,
 		fd:    fd,
 		addr:  addr,
-		in:    make([]byte, 4, 4),
-		out:   make([]byte, 0, 4096),
+		in:    bufIn,
+		out:   bufOut,
 		attrs: make(map[string]interface{}),
 	}
 

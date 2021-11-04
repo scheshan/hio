@@ -2,6 +2,7 @@ package hio
 
 import (
 	"errors"
+	"syscall"
 )
 
 var ErrBufferEmpty = errors.New("buffer is empty")
@@ -99,6 +100,22 @@ func (t *Buffer) Skip(n int) error {
 	}
 
 	return nil
+}
+
+func (t *Buffer) CopyToFile(fd int) (n int, err error) {
+	for t.CanRead() {
+		cn, e := syscall.Write(fd, t.ri.buf[t.ri.ri:t.ri.wi])
+		n += cn
+		t.Skip(cn)
+		if e != nil {
+			if e == syscall.EAGAIN {
+				return n, nil
+			}
+			return n, e
+		}
+	}
+
+	return
 }
 
 func (t *Buffer) alloc(size int) {
