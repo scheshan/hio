@@ -1,5 +1,7 @@
 package hio
 
+var networkWaitMs int64 = 30_000
+
 type networkEvent struct {
 	fd int
 	ev int

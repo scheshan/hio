@@ -63,6 +63,10 @@ func (t *network) addEvent(fd int, mode int, flags int) error {
 	return err
 }
 
+func (t *network) shutdown() {
+	syscall.Close(t.kq)
+}
+
 func newNetwork() (*network, error) {
 	fd, err := syscall.Kqueue()
 	if err != nil {
