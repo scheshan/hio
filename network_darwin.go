@@ -11,19 +11,19 @@ type network struct {
 }
 
 func (t *network) addRead(fd int) error {
-	return t.addEvent(fd, syscall.EV_ADD, syscall.EVFILT_READ)
+	return t.addEvent(fd, syscall.EVFILT_READ, syscall.EV_ADD)
 }
 
 func (t *network) addWrite(fd int) error {
-	return t.addEvent(fd, syscall.EV_ADD, syscall.EVFILT_READ|syscall.EVFILT_WRITE)
+	return t.addEvent(fd, syscall.EVFILT_READ|syscall.EVFILT_WRITE, syscall.EV_ADD)
 }
 
 func (t *network) removeRead(fd int) error {
-	return t.addEvent(fd, syscall.EV_DELETE, syscall.EVFILT_READ)
+	return t.addEvent(fd, syscall.EVFILT_READ, syscall.EV_DELETE)
 }
 
 func (t *network) removeWrite(fd int) error {
-	return t.addEvent(fd, syscall.EV_DELETE, syscall.EVFILT_READ|syscall.EVFILT_WRITE)
+	return t.addEvent(fd, syscall.EVFILT_READ|syscall.EVFILT_WRITE, syscall.EV_DELETE)
 }
 
 func (t *network) wait(timeoutMs int64) (events []networkEvent, err error) {
@@ -55,9 +55,11 @@ func (t *network) wait(timeoutMs int64) (events []networkEvent, err error) {
 	return t.nwEvents[:n], nil
 }
 
-func (t *network) addEvent(fd int, mode int, flags int) error {
+func (t *network) addEvent(fd int, filter int16, flags uint16) error {
 	changes := make([]syscall.Kevent_t, 1, 1)
-	syscall.SetKevent(&changes[0], fd, mode, flags)
+	changes[0].Ident = uint64(fd)
+	changes[0].Filter = filter
+	changes[0].Flags = uint16(flags)
 
 	_, err := syscall.Kevent(t.kq, changes, nil, nil)
 	return err

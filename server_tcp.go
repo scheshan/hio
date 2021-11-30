@@ -2,6 +2,7 @@ package hio
 
 import (
 	"errors"
+	"log"
 	"sync/atomic"
 	"syscall"
 )
@@ -32,29 +33,32 @@ func (t *tcpServer) run() error {
 }
 
 func (t *tcpServer) bindAndListen() error {
-	var typ int
+	var soType int
 	if _, ok := t.addr.(*syscall.SockaddrInet4); ok {
-		typ = syscall.AF_INET
+		soType = syscall.AF_INET
 	} else {
-		typ = syscall.AF_INET6
+		soType = syscall.AF_INET6
 	}
 
-	fd, err := syscall.Socket(0, typ, syscall.SOCK_STREAM)
+	fd, err := syscall.Socket(soType, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return err
 	}
 	t.lfd = fd
 
-	if err := syscall.SetsockoptInt(t.lfd, 0, syscall.SO_REUSEADDR, 1); err != nil {
-		return err
-	}
-	if err := syscall.SetsockoptInt(t.lfd, 0, syscall.SO_REUSEPORT, 1); err != nil {
+	if err = syscall.SetsockoptInt(t.lfd, 0, syscall.SO_REUSEADDR, 1); err != nil {
 		return err
 	}
 
-	if err := syscall.Bind(t.lfd, t.addr); err != nil {
+	if err = syscall.Bind(t.lfd, t.addr); err != nil {
 		return err
 	}
+
+	if err = syscall.Listen(t.lfd, 1024); err != nil {
+		return err
+	}
+
+	log.Printf("server started and listen on addr: %v", t.addr)
 
 	return nil
 }
@@ -75,7 +79,7 @@ func (t *tcpServer) initNetwork() error {
 
 func (t *tcpServer) loop() {
 	for t.running == 1 {
-		_, err := t.nw.wait(networkWaitMs)
+		n, err := t.nw.wait(networkWaitMs)
 		if err != nil {
 			if err == syscall.EAGAIN {
 				continue
@@ -83,6 +87,22 @@ func (t *tcpServer) loop() {
 			t.shutdown()
 			return
 		}
+
+		for range n {
+			fd, _, err := syscall.Accept(t.lfd)
+			if err != nil {
+				if err == syscall.EAGAIN {
+					continue
+				}
+				t.shutdown()
+				return
+			}
+
+			log.Printf("new connection: %v, now close it", fd)
+			syscall.Close(fd)
+		}
+
+		log.Print(n)
 	}
 }
 

@@ -3,7 +3,7 @@ package hio
 import (
 	"errors"
 	"net"
-	"strings"
+	"strconv"
 	"syscall"
 )
 
@@ -19,7 +19,7 @@ func resolveIpAndPort(ip net.IP, port int) syscall.Sockaddr {
 	var sa syscall.Sockaddr
 	var addr []byte
 
-	if len(ip) == net.IPv4len {
+	if ip == nil || len(ip) == net.IPv4len {
 		sa4 := &syscall.SockaddrInet4{}
 		sa4.Port = port
 		addr = sa4.Addr[:]
@@ -31,7 +31,7 @@ func resolveIpAndPort(ip net.IP, port int) syscall.Sockaddr {
 		sa = sa6
 	}
 
-	for i := 0; i < len(addr); i++ {
+	for i := 0; i < len(ip); i++ {
 		addr[i] = ip[i]
 	}
 
@@ -39,41 +39,57 @@ func resolveIpAndPort(ip net.IP, port int) syscall.Sockaddr {
 }
 
 func resolveAddr(addr string) (proto string, sa syscall.Sockaddr, err error) {
+	port, err := strconv.Atoi(addr)
+	if err != nil {
+		return "", nil, err
+	}
+
 	proto = "tcp"
-	if strings.Contains(addr, "://") {
-		proto = strings.Split(addr, "://")[0]
+	sa = &syscall.SockaddrInet4{
+		Port: port,
+		Addr: [4]byte{},
 	}
+	err = nil
+	return
 
-	sa = nil
-
-	switch proto {
-	case "tcp":
-		tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
-		if err != nil {
-			return proto, nil, err
-		}
-		sa = resolveIpAndPort(tcpAddr.IP, tcpAddr.Port)
-		return
-	case "udp":
-		udpAddr, err := net.ResolveUDPAddr("udp", addr)
-		if err != nil {
-			return
-		}
-		sa = resolveIpAndPort(udpAddr.IP, udpAddr.Port)
-		return
-	case "unix":
-		unixAddr, err := net.ResolveUnixAddr("unix", addr)
-		if err != nil {
-			return
-		}
-
-		sa := &syscall.SockaddrUnix{}
-		sa.Name = unixAddr.Name
-		return
-	default:
-		err = errors.New("Protocol " + proto + " not supported")
-		return
-	}
+	//TODO: resolve real address
+	//proto = "tcp"
+	//if strings.Contains(addr, "://") {
+	//	arr := strings.Split(addr, "://")
+	//	proto = arr[0]
+	//	addr = arr[1]
+	//}
+	//
+	//sa = nil
+	//
+	//switch proto {
+	//case "tcp":
+	//	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	//	if err != nil {
+	//		return proto, nil, err
+	//	}
+	//	sa = resolveIpAndPort(tcpAddr.IP, tcpAddr.Port)
+	//	return proto, sa, nil
+	//case "udp":
+	//	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	//	if err != nil {
+	//		return proto, nil, err
+	//	}
+	//	sa = resolveIpAndPort(udpAddr.IP, udpAddr.Port)
+	//	return proto, sa, nil
+	//case "unix":
+	//	unixAddr, err := net.ResolveUnixAddr("unix", addr)
+	//	if err != nil {
+	//		return proto, nil, err
+	//	}
+	//
+	//	sa := &syscall.SockaddrUnix{}
+	//	sa.Name = unixAddr.Name
+	//	return proto, sa, nil
+	//default:
+	//	err = errors.New("Protocol " + proto + " not supported")
+	//	return proto, nil, err
+	//}
 }
 
 func Serve(addr string, opt *ServerOptions) (Server, error) {
