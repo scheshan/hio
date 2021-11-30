@@ -9,7 +9,7 @@ type EventLoop struct {
 	nw      *network
 	id      uint64
 	connMap map[int]*Conn
-	buf     *Bytes
+	buf     []byte
 	running int32
 }
 
@@ -23,9 +23,43 @@ func (t *EventLoop) addConn(conn *Conn) {
 	t.connMap[conn.fd] = conn
 }
 
+func (t *EventLoop) deleteConn(conn *Conn) {
+	delete(t.connMap, conn.fd)
+	conn.doClose()
+}
+
 func (t *EventLoop) loop() {
 	for t.running == 1 {
+		events, err := t.nw.wait(networkWaitMs)
+		if err != nil && err != syscall.EAGAIN {
+			panic(err)
+		}
 
+		if len(events) == 0 {
+			continue
+		}
+
+		for _, ev := range events {
+			if ev.canRead() {
+				t.readConn(ev.fd)
+			}
+		}
+	}
+}
+
+func (t *EventLoop) readConn(fd int) {
+	conn := t.connMap[fd]
+
+	for {
+		n, err := syscall.Read(fd, t.buf)
+		if err != nil {
+			if err != syscall.EAGAIN {
+				t.deleteConn(conn)
+			}
+			return
+		}
+
+		conn.in.Write(t.buf[:n])
 	}
 }
 
@@ -50,7 +84,7 @@ func (t *EventLoop) shutdown() {
 		cm := t.connMap
 		t.connMap = nil
 		for _, conn := range cm {
-			syscall.Close(conn.fd)
+			conn.doClose()
 		}
 	}
 }
@@ -64,7 +98,7 @@ func newEventLoop(id uint64) (*EventLoop, error) {
 	loop := &EventLoop{}
 	loop.id = id
 	loop.connMap = make(map[int]*Conn)
-	loop.buf, _ = defaultBytesPool.Get(4096)
+	loop.buf = make([]byte, 40960)
 	loop.nw = nw
 
 	return loop, nil
