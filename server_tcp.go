@@ -3,6 +3,7 @@ package hio
 import (
 	"errors"
 	"log"
+	"runtime"
 	"sync/atomic"
 	"syscall"
 )
@@ -13,6 +14,8 @@ type tcpServer struct {
 	running int32
 	lfd     int
 	connId  uint64
+	loops   []*EventLoop
+	opt     ServerOptions
 }
 
 func (t *tcpServer) run() error {
@@ -21,6 +24,10 @@ func (t *tcpServer) run() error {
 	}
 
 	if err := t.bindAndListen(); err != nil {
+		return err
+	}
+
+	if err := t.initEventLoops(); err != nil {
 		return err
 	}
 
@@ -78,6 +85,25 @@ func (t *tcpServer) initNetwork() error {
 	return nil
 }
 
+func (t *tcpServer) initEventLoops() error {
+	loopNum := t.opt.EventLoopNum
+	if loopNum <= 0 {
+		loopNum = runtime.NumCPU()
+	}
+
+	t.loops = make([]*EventLoop, loopNum)
+	for i := 0; i < loopNum; i++ {
+		el, err := newEventLoop(uint64(i))
+		if err != nil {
+			return err
+		}
+
+		t.loops[i] = el
+	}
+
+	return nil
+}
+
 func (t *tcpServer) loop() {
 	for t.running == 1 {
 		n, err := t.nw.wait(networkWaitMs)
@@ -101,12 +127,20 @@ func (t *tcpServer) loop() {
 
 			t.connId++
 
-			newConn(t.connId, sa, fd)
-			log.Printf("new connection: %v, now close it", fd)
+			conn := newConn(t.connId, sa, fd)
+			t.handleNewConn(conn)
 		}
 
 		log.Print(n)
 	}
+}
+
+func (t *tcpServer) handleNewConn(conn *Conn) {
+	//TODO load balance
+	el := t.loops[0]
+	el.addConn(conn)
+
+	log.Printf("new connection: %v, now dispatch to eventLoop: %v", conn, el.id)
 }
 
 func (t *tcpServer) shutdown() {
@@ -118,6 +152,16 @@ func (t *tcpServer) shutdown() {
 	if t.lfd > 0 {
 		syscall.Close(t.lfd)
 		t.lfd = 0
+	}
+	if t.loops != nil {
+		loops := t.loops
+		t.loops = nil
+
+		for _, loop := range loops {
+			if loop != nil {
+				loop.shutdown()
+			}
+		}
 	}
 }
 

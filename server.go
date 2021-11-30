@@ -92,11 +92,7 @@ func resolveAddr(addr string) (proto string, sa syscall.Sockaddr, err error) {
 	//}
 }
 
-func Serve(addr string, opt *ServerOptions) (Server, error) {
-	if opt == nil {
-		return nil, errors.New("opt is required")
-	}
-
+func Serve(addr string, opt ServerOptions) (Server, error) {
 	proto, sa, err := resolveAddr(addr)
 	if err != nil {
 		return nil, err
@@ -110,9 +106,10 @@ func Serve(addr string, opt *ServerOptions) (Server, error) {
 	}
 }
 
-func serveTcp(sa syscall.Sockaddr, opt *ServerOptions) (Server, error) {
+func serveTcp(sa syscall.Sockaddr, opt ServerOptions) (Server, error) {
 	srv := &tcpServer{}
 	srv.addr = sa
+	srv.opt = opt
 
 	if err := srv.run(); err != nil {
 		return nil, err

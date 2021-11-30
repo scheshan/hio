@@ -14,7 +14,7 @@ func (t *network) addRead(fd int) error {
 	return t.addEvent(fd, syscall.EVFILT_READ, syscall.EV_ADD)
 }
 
-func (t *network) addWrite(fd int) error {
+func (t *network) addReadWrite(fd int) error {
 	return t.addEvent(fd, syscall.EVFILT_READ|syscall.EVFILT_WRITE, syscall.EV_ADD)
 }
 
@@ -22,7 +22,7 @@ func (t *network) removeRead(fd int) error {
 	return t.addEvent(fd, syscall.EVFILT_READ, syscall.EV_DELETE)
 }
 
-func (t *network) removeWrite(fd int) error {
+func (t *network) removeReadWrite(fd int) error {
 	return t.addEvent(fd, syscall.EVFILT_READ|syscall.EVFILT_WRITE, syscall.EV_DELETE)
 }
 
