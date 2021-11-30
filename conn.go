@@ -15,6 +15,10 @@ func (t *Conn) Close() error {
 	return nil
 }
 
+func (t *Conn) EventLoop() *EventLoop {
+	return t.loop
+}
+
 func (t *Conn) doClose() {
 	syscall.Close(t.fd)
 	t.in.Close()

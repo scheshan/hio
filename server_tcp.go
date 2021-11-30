@@ -93,12 +93,13 @@ func (t *tcpServer) initEventLoops() error {
 
 	t.loops = make([]*EventLoop, loopNum)
 	for i := 0; i < loopNum; i++ {
-		el, err := newEventLoop(uint64(i))
+		el, err := newEventLoop(uint64(i), t.opt)
 		if err != nil {
 			return err
 		}
 
 		t.loops[i] = el
+		el.run()
 	}
 
 	return nil
@@ -139,8 +140,6 @@ func (t *tcpServer) handleNewConn(conn *Conn) {
 	//TODO load balance
 	el := t.loops[0]
 	el.addConn(conn)
-
-	log.Printf("new connection: %v, now dispatch to eventLoop: %v", conn, el.id)
 }
 
 func (t *tcpServer) shutdown() {

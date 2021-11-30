@@ -11,6 +11,7 @@ type EventLoop struct {
 	connMap map[int]*Conn
 	buf     []byte
 	running int32
+	opt     ServerOptions
 }
 
 func (t *EventLoop) addConn(conn *Conn) {
@@ -20,7 +21,12 @@ func (t *EventLoop) addConn(conn *Conn) {
 		return
 	}
 
+	conn.loop = t
 	t.connMap[conn.fd] = conn
+
+	if t.opt.OnSessionCreated != nil {
+		t.opt.OnSessionCreated(conn)
+	}
 }
 
 func (t *EventLoop) deleteConn(conn *Conn) {
@@ -31,7 +37,7 @@ func (t *EventLoop) deleteConn(conn *Conn) {
 func (t *EventLoop) loop() {
 	for t.running == 1 {
 		events, err := t.nw.wait(networkWaitMs)
-		if err != nil && err != syscall.EAGAIN {
+		if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
 			panic(err)
 		}
 
@@ -53,13 +59,17 @@ func (t *EventLoop) readConn(fd int) {
 	for {
 		n, err := syscall.Read(fd, t.buf)
 		if err != nil {
-			if err != syscall.EAGAIN {
-				t.deleteConn(conn)
+			if err == syscall.EAGAIN {
+				break
 			}
+			t.deleteConn(conn)
 			return
 		}
 
 		conn.in.Write(t.buf[:n])
+	}
+	if t.opt.OnSessionRead != nil {
+		t.opt.OnSessionRead(conn, conn.in)
 	}
 }
 
@@ -89,7 +99,11 @@ func (t *EventLoop) shutdown() {
 	}
 }
 
-func newEventLoop(id uint64) (*EventLoop, error) {
+func (t *EventLoop) Id() uint64 {
+	return t.id
+}
+
+func newEventLoop(id uint64, opt ServerOptions) (*EventLoop, error) {
 	nw, err := newNetwork()
 	if err != nil {
 		return nil, err
@@ -100,6 +114,7 @@ func newEventLoop(id uint64) (*EventLoop, error) {
 	loop.connMap = make(map[int]*Conn)
 	loop.buf = make([]byte, 40960)
 	loop.nw = nw
+	loop.opt = opt
 
 	return loop, nil
 }

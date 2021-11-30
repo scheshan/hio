@@ -12,7 +12,9 @@ type Server interface {
 }
 
 type ServerOptions struct {
-	EventLoopNum int
+	EventLoopNum     int
+	OnSessionCreated func(conn *Conn)
+	OnSessionRead    func(conn *Conn, buf *Buffer)
 }
 
 func resolveIpAndPort(ip net.IP, port int) syscall.Sockaddr {
