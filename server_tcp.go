@@ -12,6 +12,7 @@ type tcpServer struct {
 	nw      *network
 	running int32
 	lfd     int
+	connId  uint64
 }
 
 func (t *tcpServer) run() error {
@@ -89,7 +90,7 @@ func (t *tcpServer) loop() {
 		}
 
 		for range n {
-			fd, _, err := syscall.Accept(t.lfd)
+			fd, sa, err := syscall.Accept(t.lfd)
 			if err != nil {
 				if err == syscall.EAGAIN {
 					continue
@@ -98,8 +99,10 @@ func (t *tcpServer) loop() {
 				return
 			}
 
+			t.connId++
+
+			newConn(t.connId, sa, fd)
 			log.Printf("new connection: %v, now close it", fd)
-			syscall.Close(fd)
 		}
 
 		log.Print(n)
