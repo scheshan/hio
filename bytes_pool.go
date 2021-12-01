@@ -36,9 +36,10 @@ func (t *bytesPool) get(size int) *Bytes {
 	}
 
 	ind := t.ind(size)
-	data := t.pools[ind].Get().(*Bytes)
+	b := t.pools[ind].Get().(*Bytes)
+	b.init(size)
 
-	return data
+	return b
 }
 
 func (t *bytesPool) put(b *Bytes) {
@@ -64,8 +65,8 @@ func NewBytesPoolSize(size int) *bytesPool {
 			New: func() interface{} {
 				buf := make([]byte, bytes)
 				b := &Bytes{
-					buf: buf,
-					ind: ind,
+					origin: buf,
+					ind:    ind,
 				}
 
 				return b

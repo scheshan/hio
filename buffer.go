@@ -19,7 +19,6 @@ func (t *Buffer) Write(data []byte) {
 
 	n := t.tail.copy(data)
 
-	t.tail.w += n
 	t.size += n
 	if n == len(data) {
 		return
@@ -42,7 +41,7 @@ func (t *Buffer) ReadByte() (byte, error) {
 	}
 
 	for {
-		if t.r.readableBytes() > 1 {
+		if t.r.readableBytes() > 0 {
 			return t.r.nextByte(), nil
 		}
 
@@ -88,6 +87,7 @@ func (t *Buffer) Release() {
 func (t *Buffer) addNewNode(data []byte) {
 	size := len(data)
 	b := Malloc(size)
+	b.CopyFrom(data)
 
 	node := &bufferNode{
 		bytes: b,

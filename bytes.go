@@ -1,9 +1,10 @@
 package hio
 
 type Bytes struct {
-	buf []byte
-	ind int
-	ref int
+	origin []byte
+	buf    []byte
+	ind    int
+	ref    int
 }
 
 func (t *Bytes) incrRef() {
@@ -56,6 +57,10 @@ func (t *Bytes) CopyFrom(data []byte) int {
 
 func (t *Bytes) CopyStartFrom(start int, data []byte) int {
 	return copy(t.buf[start:], data)
+}
+
+func (t *Bytes) init(size int) {
+	t.buf = t.origin[:size]
 }
 
 func Malloc(size int) *Bytes {
