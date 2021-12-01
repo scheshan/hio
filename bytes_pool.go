@@ -1,19 +1,18 @@
 package hio
 
 import (
-	"errors"
 	"sync"
 )
 
 var defaultBytesPoolSize = 46
-var defaultBytesPool = newBytesPool(defaultBytesPoolSize)
+var defaultBytesPool = NewBytesPool()
 
-type BytesPool struct {
+type bytesPool struct {
 	pools   []*sync.Pool
 	maxSize int
 }
 
-func (t *BytesPool) ind(size int) int {
+func (t *bytesPool) ind(size int) int {
 	ind := 0
 	if !t.isPowOf2(size) {
 		ind = 1
@@ -27,38 +26,35 @@ func (t *BytesPool) ind(size int) int {
 	return ind - 1
 }
 
-func (t *BytesPool) Get(size int) (*Bytes, error) {
-	if size <= 0 {
-		return nil, errors.New("invalid size")
-	}
-	if size > t.maxSize {
-		return nil, errors.New("request size too large")
+func (t *bytesPool) isPowOf2(size int) bool {
+	return size&(size-1) == 0
+}
+
+func (t *bytesPool) get(size int) *Bytes {
+	if size <= 0 || size > t.maxSize {
+		return nil
 	}
 
 	ind := t.ind(size)
 	data := t.pools[ind].Get().(*Bytes)
 
-	return data, nil
+	return data
 }
 
-func (t *BytesPool) isPowOf2(size int) bool {
-	return size&(size-1) == 0
-}
-
-func (t *BytesPool) put(b *Bytes) {
-	if b.p != t {
-		return
-	}
-
+func (t *bytesPool) put(b *Bytes) {
 	t.pools[b.ind].Put(b)
 }
 
-func newBytesPool(size int) *BytesPool {
+func NewBytesPool() *bytesPool {
+	return NewBytesPoolSize(defaultBytesPoolSize)
+}
+
+func NewBytesPoolSize(size int) *bytesPool {
 	if size <= 0 || size > 64 {
 		panic("invalid pool size")
 	}
 
-	p := new(BytesPool)
+	p := new(bytesPool)
 	p.maxSize = 1 << (size - 1)
 	p.pools = make([]*sync.Pool, size, size)
 	for i := 0; i < size; i++ {
@@ -66,12 +62,12 @@ func newBytesPool(size int) *BytesPool {
 		ind := i
 		p.pools[i] = &sync.Pool{
 			New: func() interface{} {
-				d := make([]byte, bytes, bytes)
+				buf := make([]byte, bytes)
 				b := &Bytes{
-					b:   d,
+					buf: buf,
 					ind: ind,
-					p:   p,
 				}
+
 				return b
 			},
 		}

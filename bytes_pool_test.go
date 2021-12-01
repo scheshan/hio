@@ -3,7 +3,7 @@ package hio
 import "testing"
 
 func Test_ind(t *testing.T) {
-	p := defaultBytesPool
+	p := NewBytesPool()
 
 	assertInd(t, 0, p.ind(1))
 	assertInd(t, 1, p.ind(2))
@@ -23,12 +23,9 @@ func assertInd(t *testing.T, except int, fact int) {
 func Test_Get(t *testing.T) {
 	p := defaultBytesPool
 
-	b, err := p.Get(20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := p.get(20)
 
-	if cap(b.b) != 32 {
+	if cap(b.buf) != 32 {
 		t.Fail()
 	}
 }

@@ -21,8 +21,8 @@ func (t *Conn) EventLoop() *EventLoop {
 
 func (t *Conn) doClose() {
 	syscall.Close(t.fd)
-	t.in.Close()
-	t.out.Close()
+	t.in.Release()
+	t.out.Release()
 }
 
 func newConn(id uint64, sa syscall.Sockaddr, fd int) *Conn {
@@ -30,8 +30,8 @@ func newConn(id uint64, sa syscall.Sockaddr, fd int) *Conn {
 		id:  id,
 		sa:  sa,
 		fd:  fd,
-		in:  NewBuffer(),
-		out: NewBuffer(),
+		in:  &Buffer{},
+		out: &Buffer{},
 	}
 
 	return conn
