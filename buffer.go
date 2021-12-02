@@ -49,12 +49,12 @@ func (t *Buffer) ReadByte() (byte, error) {
 	}
 }
 
-func (t *Buffer) ReadBytes(n int) (*Bytes, error) {
+func (t *Buffer) ReadBytes(n int) ([]byte, error) {
 	if t.ReadableBytes() < n {
 		return nil, ErrBufferNoEnoughData
 	}
 
-	res := Malloc(n)
+	res := make([]byte, n)
 
 	cnt := 0
 	for cnt < n {
@@ -65,7 +65,7 @@ func (t *Buffer) ReadBytes(n int) (*Bytes, error) {
 			}
 
 			b := t.r.nextBytes(rn)
-			res.CopyStartFrom(cnt, b)
+			copy(res[cnt:], b)
 
 			cnt += rn
 		}
@@ -78,7 +78,7 @@ func (t *Buffer) Release() {
 	for t.head != nil {
 		n := t.head.next
 		t.head.next = nil
-		t.head.bytes.Release()
+		t.head.release()
 
 		t.head = n
 	}
@@ -86,13 +86,8 @@ func (t *Buffer) Release() {
 
 func (t *Buffer) addNewNode(data []byte) {
 	size := len(data)
-	b := Malloc(size)
-	b.CopyFrom(data)
-
-	node := &bufferNode{
-		bytes: b,
-		w:     size,
-	}
+	node := pool.getNode(size)
+	node.copy(data)
 
 	if t.tail == nil {
 		t.head = node

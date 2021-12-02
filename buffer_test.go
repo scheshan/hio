@@ -43,7 +43,7 @@ func TestBuffer_ReadBytes(t *testing.T) {
 		t.Fail()
 	}
 
-	if b.Len() != 3 {
+	if len(b) != 3 {
 		t.Fail()
 	}
 }
