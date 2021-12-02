@@ -21,7 +21,7 @@ type Buffer struct {
 func (t *Buffer) WriteByte(b byte) {
 	t.size++
 
-	if t.tail.writableBytes() == 0 {
+	if t.tail == nil || t.tail.writableBytes() == 0 {
 		t.addNewNode(nil)
 	}
 	t.tail.writeByte(b)
@@ -44,7 +44,7 @@ func (t *Buffer) WriteUInt8(n uint8) {
 }
 
 func (t *Buffer) WriteInt16(n int16) {
-	if t.tail.writableBytes() >= 2 {
+	if t.tail != nil && t.tail.writableBytes() >= 2 {
 		t.size += 2
 		t.tail.writeByte(byte(n>>8), byte(n))
 	} else {
@@ -58,7 +58,7 @@ func (t *Buffer) WriteUInt16(n uint16) {
 }
 
 func (t *Buffer) WriteInt32(n int32) {
-	if t.tail.writableBytes() >= 4 {
+	if t.tail != nil && t.tail.writableBytes() >= 4 {
 		t.size += 4
 		t.tail.writeByte(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
 	} else {
@@ -72,7 +72,7 @@ func (t *Buffer) WriteUInt32(n uint32) {
 }
 
 func (t *Buffer) WriteInt64(n int64) {
-	if t.tail.writableBytes() >= 8 {
+	if t.tail != nil && t.tail.writableBytes() >= 8 {
 		t.size += 8
 		t.tail.writeByte(byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32), byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
 	} else {
@@ -355,9 +355,6 @@ func (t *Buffer) addNewNode(data []byte) {
 		t.tail.next = node
 		t.tail = node
 	}
-
-	t.tail.w = size
-	t.size += size
 }
 
 func (t *Buffer) checkSize(size int) error {

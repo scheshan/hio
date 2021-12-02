@@ -2,48 +2,114 @@ package hio
 
 import "testing"
 
-func TestBuffer_Write(t *testing.T) {
+func TestBuffer_WriteBool(t *testing.T) {
 	buf := &Buffer{}
 
-	buf.Write([]byte{1, 2, 3})
-	if buf.ReadableBytes() != 3 {
-		t.Fail()
-	}
+	input := true
+	buf.WriteBool(input)
 
-	buf.Write([]byte{4, 5, 6, 7, 8, 9})
-	if buf.ReadableBytes() != 9 {
-		t.Fail()
-	}
-}
-
-func TestBuffer_ReadByte(t *testing.T) {
-	buf := &Buffer{}
-	buf.Write([]byte{1, 2, 3})
-
-	b, _ := buf.ReadByte()
-	if b != 1 {
-		t.Fail()
-	}
-	b, _ = buf.ReadByte()
-	if b != 2 {
-		t.Fail()
-	}
-	b, _ = buf.ReadByte()
-	if b != 3 {
-		t.Fail()
-	}
-}
-
-func TestBuffer_ReadBytes(t *testing.T) {
-	buf := &Buffer{}
-	buf.Write([]byte{1, 2, 3})
-
-	b, err := buf.ReadBytes(3)
+	b, err := buf.ReadBool()
 	if err != nil {
+		t.Fatal(err)
+	}
+	if b != input {
 		t.Fail()
 	}
+	if buf.ReadableBytes() > 0 {
+		t.Fail()
+	}
+}
 
-	if len(b) != 3 {
+func TestBuffer_WriteInt16(t *testing.T) {
+	buf := &Buffer{}
+
+	var input int16 = 3000
+	buf.WriteInt16(input)
+
+	n, err := buf.ReadInt16()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != input {
+		t.Fail()
+	}
+	if buf.ReadableBytes() > 0 {
+		t.Fail()
+	}
+}
+
+func TestBuffer_WriteInt32(t *testing.T) {
+	buf := &Buffer{}
+
+	var input int32 = 300000
+	buf.WriteInt32(input)
+
+	n, err := buf.ReadInt32()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != input {
+		t.Fail()
+	}
+	if buf.ReadableBytes() > 0 {
+		t.Fail()
+	}
+}
+
+func TestBuffer_WriteInt64(t *testing.T) {
+	buf := &Buffer{}
+
+	var input int64 = 300000
+	buf.WriteInt64(input)
+
+	n, err := buf.ReadInt64()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != input {
+		t.Fail()
+	}
+	if buf.ReadableBytes() > 0 {
+		t.Fail()
+	}
+}
+
+func TestBuffer_WriteBytes(t *testing.T) {
+	buf := &Buffer{}
+
+	input := []byte{1, 2, 3, 4}
+
+	buf.WriteBytes(input)
+
+	b, err := buf.ReadBytes(4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < len(b); i++ {
+		if b[i] != input[i] {
+			t.Fail()
+		}
+	}
+	if buf.ReadableBytes() > 0 {
+		t.Fail()
+	}
+}
+
+func TestBuffer_WriteString(t *testing.T) {
+	buf := &Buffer{}
+
+	input := "hello world"
+
+	buf.WriteString(input)
+
+	str, err := buf.ReadString(11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if str != input {
+		t.Fail()
+	}
+	if buf.ReadableBytes() > 0 {
 		t.Fail()
 	}
 }

@@ -66,7 +66,7 @@ func (t *EventLoop) readConn(fd int) {
 			return
 		}
 
-		conn.in.Write(t.buf[:n])
+		conn.in.WriteBytes(t.buf[:n])
 	}
 	if t.opt.OnSessionRead != nil {
 		t.opt.OnSessionRead(conn, conn.in)
