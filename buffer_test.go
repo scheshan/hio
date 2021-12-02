@@ -1,6 +1,8 @@
 package hio
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestBuffer_WriteBool(t *testing.T) {
 	buf := &Buffer{}
@@ -56,6 +58,24 @@ func TestBuffer_WriteInt32(t *testing.T) {
 	}
 }
 
+func TestBuffer_WriteUInt32(t *testing.T) {
+	buf := &Buffer{}
+
+	var input uint32 = 300000000
+	buf.WriteUInt32(input)
+
+	n, err := buf.ReadUInt32()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != input {
+		t.Fail()
+	}
+	if buf.ReadableBytes() > 0 {
+		t.Fail()
+	}
+}
+
 func TestBuffer_WriteInt64(t *testing.T) {
 	buf := &Buffer{}
 
@@ -63,6 +83,24 @@ func TestBuffer_WriteInt64(t *testing.T) {
 	buf.WriteInt64(input)
 
 	n, err := buf.ReadInt64()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != input {
+		t.Fail()
+	}
+	if buf.ReadableBytes() > 0 {
+		t.Fail()
+	}
+}
+
+func TestBuffer_WriteUInt64(t *testing.T) {
+	buf := &Buffer{}
+
+	var input uint64 = 300000000000000
+	buf.WriteUInt64(input)
+
+	n, err := buf.ReadUInt64()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,6 +148,48 @@ func TestBuffer_WriteString(t *testing.T) {
 		t.Fail()
 	}
 	if buf.ReadableBytes() > 0 {
+		t.Fail()
+	}
+}
+
+func TestBuffer_Slice(t *testing.T) {
+	buf := &Buffer{}
+
+	input := "hello world"
+	buf.WriteString(input)
+
+	n := len(input)
+
+	b, err := buf.Slice(n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.ReadableBytes() != n {
+		t.Fail()
+	}
+
+	str, err := b.ReadString(n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.ReadableBytes() != 0 {
+		t.Fail()
+	}
+	if str != input {
+		t.Fail()
+	}
+
+	if buf.ReadableBytes() != n {
+		t.Fail()
+	}
+	str, err = buf.ReadString(n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.ReadableBytes() != 0 {
+		t.Fail()
+	}
+	if str != input {
 		t.Fail()
 	}
 }

@@ -85,10 +85,16 @@ func (t *defaultPool) putBuffer(buf *Buffer) {
 	t.buffers.Put(buf)
 }
 
-func (t *defaultPool) getNode(size int) *bufferNode {
+func (t *defaultPool) getNodeSize(size int) *bufferNode {
+	node := t.getNode()
+	node.b = t.getBytes(size)
+
+	return node
+}
+
+func (t *defaultPool) getNode() *bufferNode {
 	node := t.bufferNodes.Get().(*bufferNode)
 	node.ref = 1
-	node.b = t.getBytes(size)
 
 	return node
 }
