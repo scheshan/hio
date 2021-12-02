@@ -9,13 +9,6 @@ type bufferNode struct {
 	w      int
 }
 
-func (t *bufferNode) copy(data []byte) int {
-	n := copy(t.b[t.w:], data)
-	t.w += n
-
-	return n
-}
-
 func (t *bufferNode) readableBytes() int {
 	return t.w - t.r
 }
@@ -24,20 +17,24 @@ func (t *bufferNode) writableBytes() int {
 	return len(t.b) - t.w
 }
 
-func (t *bufferNode) nextByte() byte {
-	r := t.r
-	t.r++
-	b := t.b[r]
-
-	return b
-}
-
-func (t *bufferNode) nextBytes(n int) []byte {
+func (t *bufferNode) readBytes(n int) []byte {
 	r := t.r
 	t.r += n
-	b := t.b[r : r+n]
+	return t.b[r:t.r]
+}
 
-	return b
+func (t *bufferNode) writeBytes(data []byte) int {
+	n := copy(t.b[t.w:], data)
+	t.w += n
+
+	return n
+}
+
+func (t *bufferNode) writeByte(b ...byte) {
+	for _, n := range b {
+		t.b[t.w] = n
+		t.w++
+	}
 }
 
 func (t *bufferNode) release() {
