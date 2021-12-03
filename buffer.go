@@ -8,6 +8,7 @@ import (
 )
 
 var ErrBufferNoEnoughData = errors.New("buffer has no enough data to read")
+var ErrBufferReadonly = errors.New("buffer is readonly")
 
 type Buffer struct {
 	head     *bufferNode
@@ -18,112 +19,97 @@ type Buffer struct {
 
 //#region write logic
 
-func (t *Buffer) WriteByte(b byte) {
-	if !t.CanWrite() {
-		return
+func (t *Buffer) WriteByte(b byte) error {
+	if err := t.checkWrite(); err != nil {
+		return err
 	}
 
-	t.size++
+	t.writeByte(b)
 
-	if t.tail == nil || t.tail.writableBytes() == 0 {
-		t.addNewNode(nil)
-	}
-	t.tail.writeByte(b)
+	return nil
 }
 
-func (t *Buffer) WriteBool(b bool) {
+func (t *Buffer) WriteBool(b bool) error {
 	if b {
-		t.WriteByte(1)
+		return t.WriteByte(1)
 	} else {
-		t.WriteByte(0)
+		return t.WriteByte(0)
 	}
 }
 
-func (t *Buffer) WriteInt8(n int8) {
-	t.WriteByte(byte(n))
+func (t *Buffer) WriteInt8(n int8) error {
+	return t.WriteByte(byte(n))
 }
 
-func (t *Buffer) WriteUInt8(n uint8) {
-	t.WriteInt8(int8(n))
+func (t *Buffer) WriteUInt8(n uint8) error {
+	return t.WriteInt8(int8(n))
 }
 
-func (t *Buffer) WriteInt16(n int16) {
-	if !t.CanWrite() {
-		return
+func (t *Buffer) WriteInt16(n int16) error {
+	return t.WriteUInt16(uint16(n))
+}
+
+func (t *Buffer) WriteUInt16(n uint16) error {
+	if err := t.checkWrite(); err != nil {
+		return err
 	}
 
-	if t.tail != nil && t.tail.writableBytes() >= 2 {
-		t.size += 2
-		t.tail.writeByte(byte(n>>8), byte(n))
-	} else {
-		t.WriteByte(byte(n >> 8))
-		t.WriteByte(byte(n))
-	}
+	t.writeUInt16(n)
+
+	return nil
 }
 
-func (t *Buffer) WriteUInt16(n uint16) {
-	t.WriteInt16(int16(n))
+func (t *Buffer) WriteInt32(n int32) error {
+	return t.WriteUInt32(uint32(n))
 }
 
-func (t *Buffer) WriteInt32(n int32) {
-	if !t.CanWrite() {
-		return
+func (t *Buffer) WriteUInt32(n uint32) error {
+	if err := t.checkWrite(); err != nil {
+		return err
 	}
 
-	if t.tail != nil && t.tail.writableBytes() >= 4 {
-		t.size += 4
-		t.tail.writeByte(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
-	} else {
-		t.WriteInt16(int16(n >> 16))
-		t.WriteInt16(int16(n))
-	}
+	t.writeUInt32(n)
+
+	return nil
 }
 
-func (t *Buffer) WriteUInt32(n uint32) {
-	t.WriteInt32(int32(n))
+func (t *Buffer) WriteInt64(n int64) error {
+	return t.WriteUInt64(uint64(n))
 }
 
-func (t *Buffer) WriteInt64(n int64) {
-	if !t.CanWrite() {
-		return
+func (t *Buffer) WriteUInt64(n uint64) error {
+	if err := t.checkWrite(); err != nil {
+		return err
 	}
 
-	if t.tail != nil && t.tail.writableBytes() >= 8 {
-		t.size += 8
-		t.tail.writeByte(byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32), byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
-	} else {
-		t.WriteInt32(int32(n >> 32))
-		t.WriteInt32(int32(n))
-	}
+	t.writeUInt64(n)
+
+	return nil
 }
 
-func (t *Buffer) WriteUInt64(n uint64) {
-	t.WriteInt64(int64(n))
-}
-
-func (t *Buffer) WriteInt(n int) {
+func (t *Buffer) WriteInt(n int) error {
 	if strconv.IntSize == 32 {
-		t.WriteInt32(int32(n))
+		return t.WriteInt32(int32(n))
 	} else {
-		t.WriteInt64(int64(n))
+		return t.WriteInt64(int64(n))
 	}
 }
 
-func (t *Buffer) WriteUInt(n uint) {
+func (t *Buffer) WriteUInt(n uint) error {
 	if strconv.IntSize == 32 {
-		t.WriteUInt32(uint32(n))
+		return t.WriteUInt32(uint32(n))
 	} else {
-		t.WriteUInt64(uint64(n))
+		return t.WriteUInt64(uint64(n))
 	}
 }
 
-func (t *Buffer) WriteString(str string) {
-	t.WriteBytes(t.stringToBytes(str))
+func (t *Buffer) WriteString(str string) error {
+	return t.WriteBytes(t.stringToBytes(str))
 }
 
-func (t *Buffer) WriteBytes(data []byte) {
-	if !t.CanWrite() {
-		return
+func (t *Buffer) WriteBytes(data []byte) (err error) {
+	if err = t.checkWrite(); err != nil {
+		return err
 	}
 
 	t.size += len(data)
@@ -139,6 +125,27 @@ func (t *Buffer) WriteBytes(data []byte) {
 	}
 
 	t.addNewNode(data[n:])
+	return
+}
+
+func (t *Buffer) Append(buf *Buffer) error {
+	if err := t.checkWrite(); err != nil {
+		return err
+	}
+
+	h := buf.head
+	for h != nil {
+		node := pool.getNode()
+		node.reference(h)
+
+		t.addNodeToTail(node)
+		h = h.next
+	}
+
+	t.size += buf.ReadableBytes()
+	buf.Release()
+
+	return nil
 }
 
 //#endregion
@@ -352,37 +359,6 @@ func (t *Buffer) ReadString(n int) (string, error) {
 
 //#endregion
 
-func (t *Buffer) Slice(n int) (*Buffer, error) {
-	if err := t.checkSize(n); err != nil {
-		return nil, err
-	}
-
-	buf := pool.getBuffer()
-	buf.readonly = true
-	buf.size = t.size
-
-	cnt := 0
-	for cnt < n {
-		r := t.head
-		r.ref++
-
-		node := pool.getNode()
-		node.r = r.r
-		node.w = r.w
-		node.origin = r
-		node.b = r.b
-
-		if cnt+node.readableBytes() > n {
-			node.w = node.r + n - cnt
-		}
-		cnt += node.readableBytes()
-
-		buf.addNodeToTail(node)
-	}
-
-	return buf, nil
-}
-
 func (t *Buffer) Release() {
 	for t.head != nil {
 		n := t.head.next
@@ -391,6 +367,8 @@ func (t *Buffer) Release() {
 
 		t.head = n
 	}
+	t.size = 0
+	t.tail = nil
 }
 
 func (t *Buffer) CanRead() bool {
@@ -434,6 +412,14 @@ func (t *Buffer) checkSize(size int) error {
 	return nil
 }
 
+func (t *Buffer) checkWrite() error {
+	if t.readonly {
+		return ErrBufferReadonly
+	}
+
+	return nil
+}
+
 func (t *Buffer) bytesToString(data []byte) string {
 	return *(*string)(unsafe.Pointer(&data))
 }
@@ -452,5 +438,44 @@ func (t *Buffer) skipNode() {
 		next := t.head.next
 		t.head.release()
 		t.head = next
+	}
+}
+
+func (t *Buffer) writeByte(b byte) {
+	t.size++
+
+	if t.tail == nil || t.tail.writableBytes() == 0 {
+		t.addNewNode(nil)
+	}
+	t.tail.writeByte(b)
+}
+
+func (t *Buffer) writeUInt16(n uint16) {
+	if t.tail != nil && t.tail.writableBytes() >= 2 {
+		t.size += 2
+		t.tail.writeByte(byte(n>>8), byte(n))
+	} else {
+		t.writeByte(byte(n >> 8))
+		t.writeByte(byte(n))
+	}
+}
+
+func (t *Buffer) writeUInt32(n uint32) {
+	if t.tail != nil && t.tail.writableBytes() >= 4 {
+		t.size += 4
+		t.tail.writeByte(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+	} else {
+		t.writeUInt16(uint16(n >> 16))
+		t.writeUInt16(uint16(n))
+	}
+}
+
+func (t *Buffer) writeUInt64(n uint64) {
+	if t.tail != nil && t.tail.writableBytes() >= 8 {
+		t.size += 8
+		t.tail.writeByte(byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32), byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+	} else {
+		t.writeUInt32(uint32(n >> 32))
+		t.writeUInt32(uint32(n))
 	}
 }

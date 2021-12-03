@@ -57,3 +57,15 @@ func (t *bufferNode) release() {
 		pool.putNode(t)
 	}
 }
+
+func (t *bufferNode) reference(origin *bufferNode) {
+	t.r = origin.r
+	t.w = origin.w
+	t.origin = origin
+	t.b = origin.b
+
+	if origin.origin != nil {
+		t.origin = origin.origin
+	}
+	t.origin.ref++
+}
