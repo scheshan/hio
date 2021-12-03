@@ -12,7 +12,6 @@ var ErrBufferNoEnoughData = errors.New("buffer has no enough data to read")
 type Buffer struct {
 	head     *bufferNode
 	tail     *bufferNode
-	r        *bufferNode
 	size     int
 	readonly bool
 }
@@ -158,11 +157,12 @@ func (t *Buffer) ReadByte() (byte, error) {
 
 	var res byte
 	for {
-		if t.r.readableBytes() > 0 {
-			res = t.r.readBytes(1)[0]
+		if t.head.readableBytes() > 0 {
+			res = t.head.readBytes(1)[0]
+			t.skipNode()
 			break
 		}
-		t.r = t.r.next
+		t.skipNode()
 	}
 
 	return res, nil
@@ -191,32 +191,33 @@ func (t *Buffer) ReadUInt8() (uint8, error) {
 }
 
 func (t *Buffer) ReadInt16() (int16, error) {
-	if err := t.checkSize(2); err != nil {
-		return 0, err
-	}
-
-	var res int16
-	if t.r.readableBytes() >= 2 {
-		b := t.r.readBytes(2)
-		t.size -= 2
-
-		res = int16(b[0])<<8 | int16(b[1])
-	} else {
-		b1, _ := t.ReadByte()
-		b2, _ := t.ReadByte()
-		res = (int16(b1) << 8) | int16(b2)
-	}
-
-	return res, nil
-}
-
-func (t *Buffer) ReadUInt16() (uint16, error) {
-	res, err := t.ReadInt16()
+	res, err := t.ReadUInt16()
 	if err != nil {
 		return 0, err
 	}
 
-	return uint16(res), nil
+	return int16(res), nil
+}
+
+func (t *Buffer) ReadUInt16() (uint16, error) {
+	if err := t.checkSize(2); err != nil {
+		return 0, err
+	}
+
+	var res uint16
+	if t.head.readableBytes() >= 2 {
+		b := t.head.readBytes(2)
+		t.size -= 2
+		t.skipNode()
+
+		res = uint16(b[0])<<8 | uint16(b[1])
+	} else {
+		b1, _ := t.ReadByte()
+		b2, _ := t.ReadByte()
+		res = (uint16(b1) << 8) | uint16(b2)
+	}
+
+	return res, nil
 }
 
 func (t *Buffer) ReadInt32() (int32, error) {
@@ -235,9 +236,11 @@ func (t *Buffer) ReadUInt32() (uint32, error) {
 
 	var res uint32
 
-	if t.r.readableBytes() >= 4 {
+	if t.head.readableBytes() >= 4 {
+		b := t.head.readBytes(4)
 		t.size -= 4
-		b := t.r.readBytes(4)
+		t.skipNode()
+
 		res |= uint32(b[0]) << 24
 		res |= uint32(b[1]) << 16
 		res |= uint32(b[2]) << 8
@@ -267,9 +270,11 @@ func (t *Buffer) ReadUInt64() (uint64, error) {
 	}
 
 	var res uint64
-	if t.r.readableBytes() >= 8 {
+	if t.head.readableBytes() >= 8 {
+		b := t.head.readBytes(8)
 		t.size -= 8
-		b := t.r.readBytes(8)
+		t.skipNode()
+
 		res |= uint64(b[0]) << 56
 		res |= uint64(b[1]) << 48
 		res |= uint64(b[2]) << 40
@@ -317,21 +322,18 @@ func (t *Buffer) ReadBytes(n int) ([]byte, error) {
 
 	cnt := 0
 	for cnt < n {
-		if t.r.readableBytes() > 0 {
+		if t.head.readableBytes() > 0 {
 			rn := n - cnt
-			if rn > t.r.readableBytes() {
-				rn = t.r.readableBytes()
+			if rn > t.head.readableBytes() {
+				rn = t.head.readableBytes()
 			}
 
-			b := t.r.readBytes(rn)
+			b := t.head.readBytes(rn)
 			copy(res[cnt:], b)
 
 			cnt += rn
-
-			if t.r.readableBytes() == 0 {
-				t.r = t.r.next
-			}
 		}
+		t.skipNode()
 	}
 
 	t.size -= n
@@ -361,7 +363,7 @@ func (t *Buffer) Slice(n int) (*Buffer, error) {
 
 	cnt := 0
 	for cnt < n {
-		r := t.r
+		r := t.head
 		r.ref++
 
 		node := pool.getNode()
@@ -418,7 +420,6 @@ func (t *Buffer) addNodeToTail(node *bufferNode) {
 	if t.tail == nil {
 		t.head = node
 		t.tail = node
-		t.r = node
 	} else {
 		t.tail.next = node
 		t.tail = node
@@ -444,4 +445,12 @@ func (t *Buffer) stringToBytes(str string) (data []byte) {
 	hdr.Cap = len(str)
 	hdr.Len = len(str)
 	return data
+}
+
+func (t *Buffer) skipNode() {
+	if t.head.readableBytes() == 0 {
+		next := t.head.next
+		t.head.release()
+		t.head = next
+	}
 }

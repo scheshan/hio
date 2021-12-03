@@ -54,5 +54,6 @@ func (t *bufferNode) release() {
 		t.b = nil
 		t.origin = nil
 		t.next = nil
+		pool.putNode(t)
 	}
 }
