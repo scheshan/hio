@@ -380,7 +380,7 @@ func (t *Buffer) CanWrite() bool {
 }
 
 func (t *Buffer) addNewNode(data []byte) {
-	size := 1
+	size := 4096
 	if data != nil && len(data) > size {
 		size = len(data)
 	}
