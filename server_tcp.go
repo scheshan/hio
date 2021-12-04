@@ -135,8 +135,6 @@ func (t *tcpServer) loop() {
 			conn := newConn(t.connId, sa, fd)
 			t.handleNewConn(conn)
 		}
-
-		log.Print(n)
 	}
 }
 

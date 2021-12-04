@@ -1,6 +1,7 @@
 package hio
 
 import (
+	"log"
 	"sync/atomic"
 	"syscall"
 )
@@ -15,8 +16,12 @@ type EventLoop struct {
 }
 
 func (t *EventLoop) addConn(conn *Conn) {
-	err := t.nw.addReadWrite(conn.fd)
-	if err != nil {
+	if err := syscall.SetNonblock(conn.fd, true); err != nil {
+		conn.doClose()
+		return
+	}
+
+	if err := t.nw.addRead(conn.fd); err != nil {
 		conn.doClose()
 		return
 	}
@@ -37,7 +42,14 @@ func (t *EventLoop) deleteConn(conn *Conn) {
 func (t *EventLoop) loop() {
 	for t.running == 1 {
 		events, err := t.nw.wait(networkWaitMs)
-		if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
+		if err != nil {
+			if err == syscall.EAGAIN || err == syscall.EINTR {
+				continue
+			}
+			if err == syscall.EBADF {
+				return
+			}
+
 			panic(err)
 		}
 
@@ -47,30 +59,61 @@ func (t *EventLoop) loop() {
 
 		for _, ev := range events {
 			if ev.canRead() {
-				t.readConn(ev.fd)
+				conn := t.connMap[ev.fd]
+				if conn != nil {
+					t.readConn(conn)
+				}
 			}
 		}
 	}
 }
 
-func (t *EventLoop) readConn(fd int) {
-	conn := t.connMap[fd]
+func (t *EventLoop) readConn(conn *Conn) {
+	buf := pool.getBuffer()
+	defer func() {
+		buf.Release()
+	}()
 
 	for {
-		n, err := syscall.Read(fd, t.buf)
+		n, err := syscall.Read(conn.fd, t.buf)
 		if err != nil {
 			if err == syscall.EAGAIN {
 				break
 			}
+			t.onConnError(conn, err)
+			return
+		}
+		if n == 0 {
 			t.deleteConn(conn)
 			return
 		}
 
-		conn.in.WriteBytes(t.buf[:n])
+		if t.opt.OnSessionRead != nil {
+			buf.WriteBytes(t.buf[:n])
+		}
 	}
 	if t.opt.OnSessionRead != nil {
-		t.opt.OnSessionRead(conn, conn.in)
+		t.opt.OnSessionRead(conn, buf)
 	}
+}
+
+func (t *EventLoop) writeConn(conn *Conn) {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+
+	for {
+		err := conn.flushToFile()
+		if err != nil {
+			if err == syscall.EAGAIN || err == syscall.EINTR {
+				break
+			}
+
+			t.onConnError(conn, err)
+			return
+		}
+	}
+
+	t.markWrite(conn, conn.flush.ReadableBytes() > 0)
 }
 
 func (t *EventLoop) run() {
@@ -97,6 +140,32 @@ func (t *EventLoop) shutdown() {
 			conn.doClose()
 		}
 	}
+}
+
+func (t *EventLoop) markWrite(conn *Conn, mask bool) {
+	var err error
+	flushMask := conn.flushMask
+	if mask {
+		if !flushMask {
+			flushMask = true
+			err = t.nw.addWrite(conn.fd)
+		}
+	} else {
+		if flushMask {
+			flushMask = false
+			err = t.nw.removeWrite(conn.fd)
+		}
+	}
+	conn.flushMask = flushMask
+	if err != nil {
+		t.onConnError(conn, err)
+	}
+}
+
+func (t *EventLoop) onConnError(conn *Conn, err error) {
+	log.Printf("error occours when operate conn[%s]: %v", conn, err)
+
+	t.deleteConn(conn)
 }
 
 func (t *EventLoop) Id() uint64 {

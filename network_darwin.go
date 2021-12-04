@@ -18,12 +18,20 @@ func (t *network) addReadWrite(fd int) error {
 	return t.addEvent(fd, syscall.EVFILT_READ|syscall.EVFILT_WRITE, syscall.EV_ADD)
 }
 
+func (t *network) addWrite(fd int) error {
+	return t.addEvent(fd, syscall.EVFILT_WRITE, syscall.EV_ADD)
+}
+
 func (t *network) removeRead(fd int) error {
 	return t.addEvent(fd, syscall.EVFILT_READ, syscall.EV_DELETE)
 }
 
 func (t *network) removeReadWrite(fd int) error {
 	return t.addEvent(fd, syscall.EVFILT_READ|syscall.EVFILT_WRITE, syscall.EV_DELETE)
+}
+
+func (t *network) removeWrite(fd int) error {
+	return t.addEvent(fd, syscall.EVFILT_WRITE, syscall.EV_DELETE)
 }
 
 func (t *network) wait(timeoutMs int64) (events []networkEvent, err error) {

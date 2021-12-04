@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"syscall"
 	"unsafe"
 )
 
@@ -368,6 +369,7 @@ func (t *Buffer) Release() {
 		t.head = n
 	}
 	t.size = 0
+	t.head = nil
 	t.tail = nil
 }
 
@@ -438,6 +440,10 @@ func (t *Buffer) skipNode() {
 		next := t.head.next
 		t.head.release()
 		t.head = next
+
+		if t.head == nil {
+			t.tail = nil
+		}
 	}
 }
 
@@ -478,4 +484,23 @@ func (t *Buffer) writeUInt64(n uint64) {
 		t.writeUInt32(uint32(n >> 32))
 		t.writeUInt32(uint32(n))
 	}
+}
+
+func (t *Buffer) copyToFile(fd int) error {
+	for t.ReadableBytes() > 0 {
+		h := t.head
+		if h.readableBytes() > 0 {
+			n, err := syscall.Write(fd, h.b[h.r:h.w])
+			t.size -= n
+			h.r += n
+
+			t.skipNode()
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
