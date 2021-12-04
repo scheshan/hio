@@ -122,6 +122,10 @@ func (t *EventLoop) flushConn(conn *Conn) error {
 			conn.flushMask = false
 			t.markWrite(conn, false)
 		}
+
+		if !conn.Active() {
+			t.deleteConn(conn)
+		}
 	}
 
 	return nil
@@ -166,6 +170,8 @@ func (t *EventLoop) markWrite(conn *Conn, mask bool) {
 }
 
 func (t *EventLoop) onConnError(conn *Conn, err error) {
+	conn.state = -2
+
 	log.Printf("error occours when operate conn[%s]: %v", conn, err)
 
 	t.nw.removeReadWrite(conn.fd)

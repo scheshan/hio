@@ -1,6 +1,7 @@
 package hio
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"syscall"
@@ -21,9 +22,25 @@ type Conn struct {
 
 //TODO close connection gracefully
 func (t *Conn) Close() error {
-	t.loop.deleteConn(t)
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 
-	return nil
+	if !t.Active() {
+		return errors.New("cannot close a non-active connection")
+	}
+	t.state = -2
+
+	t.mutex.Unlock()
+
+	if t.flushing {
+		return nil
+	}
+	if t.out.ReadableBytes() > 0 {
+		return t.Flush()
+	} else {
+		t.flush.Append(t.out)
+		return t.doFlush()
+	}
 }
 
 func (t *Conn) EventLoop() *EventLoop {
@@ -58,6 +75,10 @@ func (t *Conn) Flush() error {
 
 func (t *Conn) String() string {
 	return fmt.Sprintf("%v", t.id)
+}
+
+func (t *Conn) Active() bool {
+	return t.state >= 0
 }
 
 func (t *Conn) doClose() {
