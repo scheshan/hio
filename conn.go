@@ -18,6 +18,7 @@ type Conn struct {
 	flushMask bool
 	mutex     *sync.Mutex
 	state     int
+	attr      map[string]interface{}
 }
 
 //TODO close connection gracefully
@@ -81,6 +82,15 @@ func (t *Conn) Active() bool {
 	return t.state >= 0
 }
 
+func (t *Conn) Attr(key string) (value interface{}, find bool) {
+	value, find = t.attr[key]
+	return
+}
+
+func (t *Conn) SetAttr(key string, value interface{}) {
+	t.attr[key] = value
+}
+
 func (t *Conn) doClose() {
 	t.out.Release()
 	t.flush.Release()
@@ -109,6 +119,7 @@ func newConn(id uint64, sa syscall.Sockaddr, fd int) *Conn {
 		out:   &Buffer{},
 		flush: &Buffer{},
 		mutex: &sync.Mutex{},
+		attr:  make(map[string]interface{}),
 	}
 
 	return conn
