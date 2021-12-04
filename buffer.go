@@ -358,6 +358,27 @@ func (t *Buffer) ReadString(n int) (string, error) {
 	return t.bytesToString(data), nil
 }
 
+func (t *Buffer) Skip(n int) error {
+	if err := t.checkSize(n); err != nil {
+		return err
+	}
+
+	cnt := 0
+	for cnt < n {
+		h := t.head
+		num := h.w - h.r
+		if cnt+num > n {
+			num = n - cnt
+		}
+		h.r += num
+		cnt += num
+
+		t.skipNode()
+	}
+
+	return nil
+}
+
 //#endregion
 
 func (t *Buffer) Release() {
