@@ -8,9 +8,9 @@ type networkEvent struct {
 }
 
 func (t *networkEvent) canRead() bool {
-	return t.ev|1 == 1
+	return t.ev&1 == 1
 }
 
 func (t *networkEvent) canWrite() bool {
-	return t.ev|2 == 2
+	return t.ev&2 == 2
 }

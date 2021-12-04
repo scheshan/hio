@@ -11,27 +11,27 @@ type network struct {
 }
 
 func (t *network) addRead(fd int) error {
-	return t.addEvent(fd, syscall.EVFILT_READ, syscall.EV_ADD)
+	return t.addEvent(fd, syscall.EV_ADD, syscall.EVFILT_READ)
 }
 
 func (t *network) addReadWrite(fd int) error {
-	return t.addEvent(fd, syscall.EVFILT_READ|syscall.EVFILT_WRITE, syscall.EV_ADD)
+	return t.addEvent(fd, syscall.EV_ADD, syscall.EVFILT_READ, syscall.EVFILT_WRITE)
 }
 
 func (t *network) addWrite(fd int) error {
-	return t.addEvent(fd, syscall.EVFILT_WRITE, syscall.EV_ADD)
+	return t.addEvent(fd, syscall.EV_ADD, syscall.EVFILT_WRITE)
 }
 
 func (t *network) removeRead(fd int) error {
-	return t.addEvent(fd, syscall.EVFILT_READ, syscall.EV_DELETE)
+	return t.addEvent(fd, syscall.EV_DELETE, syscall.EVFILT_READ)
 }
 
 func (t *network) removeReadWrite(fd int) error {
-	return t.addEvent(fd, syscall.EVFILT_READ|syscall.EVFILT_WRITE, syscall.EV_DELETE)
+	return t.addEvent(fd, syscall.EV_DELETE, syscall.EVFILT_READ, syscall.EVFILT_WRITE)
 }
 
 func (t *network) removeWrite(fd int) error {
-	return t.addEvent(fd, syscall.EVFILT_WRITE, syscall.EV_DELETE)
+	return t.addEvent(fd, syscall.EV_DELETE, syscall.EVFILT_WRITE)
 }
 
 func (t *network) wait(timeoutMs int64) (events []networkEvent, err error) {
@@ -52,22 +52,24 @@ func (t *network) wait(timeoutMs int64) (events []networkEvent, err error) {
 		t.nwEvents[i].fd = int(ev.Ident)
 		t.nwEvents[i].ev = 0
 
-		if ev.Filter&syscall.EVFILT_READ > 0 {
-			t.nwEvents[i].ev |= 1
+		if ev.Filter == syscall.EVFILT_READ {
+			t.nwEvents[i].ev = 1
 		}
-		if ev.Filter&syscall.EVFILT_WRITE > 0 {
-			t.nwEvents[i].ev |= 2
+		if ev.Filter == syscall.EVFILT_WRITE {
+			t.nwEvents[i].ev = 2
 		}
 	}
 
 	return t.nwEvents[:n], nil
 }
 
-func (t *network) addEvent(fd int, filter int16, flags uint16) error {
-	changes := make([]syscall.Kevent_t, 1, 1)
-	changes[0].Ident = uint64(fd)
-	changes[0].Filter = filter
-	changes[0].Flags = uint16(flags)
+func (t *network) addEvent(fd int, mode int, filters ...int16) error {
+	changes := make([]syscall.Kevent_t, len(filters))
+	for i, filter := range filters {
+		changes[i].Ident = uint64(fd)
+		changes[i].Flags = uint16(mode)
+		changes[i].Filter = filter
+	}
 
 	_, err := syscall.Kevent(t.kq, changes, nil, nil)
 	return err

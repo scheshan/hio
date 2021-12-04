@@ -52,10 +52,10 @@ func (t *network) wait(timeoutMs int64) (events []networkEvent, err error) {
 		t.nwEvents[i].fd = int(ev.Fd)
 		t.nwEvents[i].ev = 0
 
-		if ev.Events&syscall.EPOLLIN > 0 {
+		if ev.Events&syscall.EPOLLIN == syscall.EPOLLIN {
 			t.nwEvents[i].ev |= 1
 		}
-		if ev.Events&syscall.EPOLLOUT > 0 {
+		if ev.Events&syscall.EPOLLOUT == syscall.EPOLLOUT {
 			t.nwEvents[i].ev |= 2
 		}
 	}

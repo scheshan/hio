@@ -71,6 +71,11 @@ func (t *Conn) doFlush() error {
 
 func (t *Conn) flushToFile() error {
 	err := t.flush.writeToFile(t.fd)
+
+	if t.flush.ReadableBytes() == 0 {
+		t.flushing = false
+	}
+
 	if err != nil {
 		if err == syscall.EAGAIN {
 			t.loop.markWrite(t, true)
@@ -79,10 +84,6 @@ func (t *Conn) flushToFile() error {
 
 		t.loop.onConnError(t, err)
 		return err
-	}
-
-	if t.flush.ReadableBytes() == 0 {
-		t.flushing = false
 	}
 
 	t.loop.markWrite(t, false)

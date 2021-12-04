@@ -64,6 +64,12 @@ func (t *EventLoop) loop() {
 					t.readConn(conn)
 				}
 			}
+			if ev.canWrite() {
+				conn := t.connMap[ev.fd]
+				if conn != nil {
+					t.writeConn(conn)
+				}
+			}
 		}
 	}
 }
@@ -94,16 +100,10 @@ func (t *EventLoop) writeConn(conn *Conn) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
-	for {
-		err := conn.flushToFile()
-		if err != nil {
-			if err == syscall.EAGAIN || err == syscall.EINTR {
-				break
-			}
-
-			t.onConnError(conn, err)
-			return
-		}
+	err := conn.flushToFile()
+	if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
+		t.onConnError(conn, err)
+		return
 	}
 
 	t.markWrite(conn, conn.flush.ReadableBytes() > 0)

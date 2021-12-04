@@ -490,11 +490,17 @@ func (t *Buffer) writeToFile(fd int) error {
 	for t.ReadableBytes() > 0 {
 		h := t.head
 		if h.readableBytes() > 0 {
-			n, err := syscall.Write(fd, h.b[h.r:h.w])
+			w := h.r + 1
+			n, err := syscall.Write(fd, h.b[h.r:w])
+			//n, err := syscall.Write(fd, h.b[h.r:h.w])
 			t.size -= n
 			h.r += n
 
 			t.skipNode()
+
+			if n > 0 {
+				return syscall.EAGAIN
+			}
 
 			if err != nil {
 				return err
