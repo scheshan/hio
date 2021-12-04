@@ -101,16 +101,30 @@ func (t *EventLoop) writeConn(conn *Conn) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
+	t.flushConn(conn)
+}
+
+func (t *EventLoop) flushConn(conn *Conn) error {
 	err := conn.flush.writeToFile(conn.fd)
 	if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
 		t.onConnError(conn, err)
-		return
+		return err
 	}
 
-	if conn.flush.ReadableBytes() == 0 {
-		t.markWrite(conn, false)
+	if conn.flush.ReadableBytes() > 0 {
+		if !conn.flushMask {
+			conn.flushMask = true
+			t.markWrite(conn, true)
+		}
+	} else {
 		conn.flushing = false
+		if conn.flushMask {
+			conn.flushMask = false
+			t.markWrite(conn, false)
+		}
 	}
+
+	return nil
 }
 
 func (t *EventLoop) run() {

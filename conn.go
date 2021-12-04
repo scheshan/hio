@@ -7,15 +7,16 @@ import (
 )
 
 type Conn struct {
-	id       uint64
-	sa       syscall.Sockaddr
-	fd       int
-	out      *Buffer
-	flush    *Buffer
-	loop     *EventLoop
-	flushing bool
-	mutex    *sync.Mutex
-	state    int
+	id        uint64
+	sa        syscall.Sockaddr
+	fd        int
+	out       *Buffer
+	flush     *Buffer
+	loop      *EventLoop
+	flushing  bool
+	flushMask bool
+	mutex     *sync.Mutex
+	state     int
 }
 
 //TODO close connection gracefully
@@ -71,19 +72,7 @@ func (t *Conn) doFlush() error {
 	}
 	t.flushing = true
 
-	err := t.flush.writeToFile(t.fd)
-	if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
-		t.loop.onConnError(t, err)
-		return err
-	}
-
-	if t.flush.ReadableBytes() > 0 {
-		t.loop.markWrite(t, true)
-	} else {
-		t.flushing = false
-	}
-
-	return nil
+	return t.loop.flushConn(t)
 }
 
 func (t *Conn) flushCompleted() {
