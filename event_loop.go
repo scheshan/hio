@@ -74,24 +74,17 @@ func (t *EventLoop) readConn(conn *Conn) {
 		buf.Release()
 	}()
 
-	for {
-		n, err := syscall.Read(conn.fd, t.buf)
-		if err != nil {
-			if err == syscall.EAGAIN {
-				break
-			}
-			t.onConnError(conn, err)
-			return
-		}
-		if n == 0 {
-			t.deleteConn(conn)
-			return
-		}
-
-		if t.opt.OnSessionRead != nil {
-			buf.WriteBytes(t.buf[:n])
-		}
+	n, err := buf.readFromFile(conn.fd)
+	if err != nil && err != syscall.EAGAIN {
+		t.onConnError(conn, err)
+		return
 	}
+
+	if n == 0 {
+		t.deleteConn(conn)
+		return
+	}
+
 	if t.opt.OnSessionRead != nil {
 		t.opt.OnSessionRead(conn, buf)
 	}

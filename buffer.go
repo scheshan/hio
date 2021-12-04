@@ -486,7 +486,7 @@ func (t *Buffer) writeUInt64(n uint64) {
 	}
 }
 
-func (t *Buffer) copyToFile(fd int) error {
+func (t *Buffer) writeToFile(fd int) error {
 	for t.ReadableBytes() > 0 {
 		h := t.head
 		if h.readableBytes() > 0 {
@@ -503,4 +503,26 @@ func (t *Buffer) copyToFile(fd int) error {
 	}
 
 	return nil
+}
+
+func (t *Buffer) readFromFile(fd int) (int, error) {
+	reads := 0
+	for {
+		if t.tail == nil || t.tail.writableBytes() == 0 {
+			t.addNewNode(nil)
+		}
+
+		n, err := syscall.Read(fd, t.tail.b[t.tail.w:])
+		if err != nil {
+			return reads, err
+		}
+
+		t.tail.w += n
+		t.size += n
+		reads += n
+
+		if t.tail.w != len(t.tail.b) {
+			return reads, nil
+		}
+	}
 }

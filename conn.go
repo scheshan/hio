@@ -70,7 +70,7 @@ func (t *Conn) doFlush() error {
 }
 
 func (t *Conn) flushToFile() error {
-	err := t.flush.copyToFile(t.fd)
+	err := t.flush.writeToFile(t.fd)
 	if err != nil {
 		if err == syscall.EAGAIN {
 			t.loop.markWrite(t, true)
