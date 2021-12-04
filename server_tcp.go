@@ -54,7 +54,11 @@ func (t *tcpServer) bindAndListen() error {
 	}
 	t.lfd = fd
 
-	if err = syscall.SetsockoptInt(t.lfd, 0, syscall.SO_REUSEADDR, 1); err != nil {
+	if err = syscall.SetsockoptInt(t.lfd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		return err
+	}
+
+	if err = syscall.SetsockoptInt(t.lfd, syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1); err != nil {
 		return err
 	}
 
@@ -109,7 +113,7 @@ func (t *tcpServer) loop() {
 	for t.running == 1 {
 		n, err := t.nw.wait(networkWaitMs)
 		if err != nil {
-			if err == syscall.EAGAIN {
+			if err == syscall.EAGAIN || err == syscall.EINTR {
 				continue
 			}
 			t.shutdown()
@@ -119,7 +123,7 @@ func (t *tcpServer) loop() {
 		for range n {
 			fd, sa, err := syscall.Accept(t.lfd)
 			if err != nil {
-				if err == syscall.EAGAIN {
+				if err == syscall.EAGAIN || err == syscall.EINTR {
 					continue
 				}
 				t.shutdown()
