@@ -1,6 +1,7 @@
 package hio
 
 import (
+	"io"
 	"log"
 	"sync/atomic"
 	"syscall"
@@ -87,7 +88,7 @@ func (t *EventLoop) readConn(conn *Conn) {
 	}
 
 	if n == 0 {
-		t.deleteConn(conn)
+		t.onConnError(conn, io.EOF)
 		return
 	}
 
@@ -100,13 +101,16 @@ func (t *EventLoop) writeConn(conn *Conn) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
-	err := conn.flushToFile()
+	err := conn.flush.writeToFile(conn.fd)
 	if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
 		t.onConnError(conn, err)
 		return
 	}
 
-	t.markWrite(conn, conn.flush.ReadableBytes() > 0)
+	if conn.flush.ReadableBytes() == 0 {
+		t.markWrite(conn, false)
+		conn.flushing = false
+	}
 }
 
 func (t *EventLoop) run() {
@@ -137,19 +141,11 @@ func (t *EventLoop) shutdown() {
 
 func (t *EventLoop) markWrite(conn *Conn, mask bool) {
 	var err error
-	flushMask := conn.flushMask
 	if mask {
-		if !flushMask {
-			flushMask = true
-			err = t.nw.addWrite(conn.fd)
-		}
+		err = t.nw.addWrite(conn.fd)
 	} else {
-		if flushMask {
-			flushMask = false
-			err = t.nw.removeWrite(conn.fd)
-		}
+		err = t.nw.removeWrite(conn.fd)
 	}
-	conn.flushMask = flushMask
 	if err != nil {
 		t.onConnError(conn, err)
 	}
@@ -158,7 +154,11 @@ func (t *EventLoop) markWrite(conn *Conn, mask bool) {
 func (t *EventLoop) onConnError(conn *Conn, err error) {
 	log.Printf("error occours when operate conn[%s]: %v", conn, err)
 
+	t.nw.removeReadWrite(conn.fd)
 	t.deleteConn(conn)
+	if t.opt.OnSessionClosed != nil {
+		t.opt.OnSessionClosed(conn)
+	}
 }
 
 func (t *EventLoop) Id() uint64 {

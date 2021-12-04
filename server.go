@@ -15,6 +15,7 @@ type ServerOptions struct {
 	EventLoopNum     int
 	OnSessionCreated func(conn *Conn)
 	OnSessionRead    func(conn *Conn, buf *Buffer)
+	OnSessionClosed  func(conn *Conn)
 }
 
 func resolveIpAndPort(ip net.IP, port int) syscall.Sockaddr {

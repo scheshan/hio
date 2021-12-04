@@ -7,18 +7,21 @@ import (
 )
 
 type Conn struct {
-	id        uint64
-	sa        syscall.Sockaddr
-	fd        int
-	out       *Buffer
-	flush     *Buffer
-	loop      *EventLoop
-	flushing  bool
-	flushMask bool
-	mutex     *sync.Mutex
+	id       uint64
+	sa       syscall.Sockaddr
+	fd       int
+	out      *Buffer
+	flush    *Buffer
+	loop     *EventLoop
+	flushing bool
+	mutex    *sync.Mutex
+	state    int
 }
 
+//TODO close connection gracefully
 func (t *Conn) Close() error {
+	t.loop.deleteConn(t)
+
 	return nil
 }
 
@@ -38,6 +41,7 @@ func (t *Conn) WriteAndFlush(buf *Buffer) error {
 	defer t.mutex.Unlock()
 
 	t.out.Append(buf)
+	t.flush.Append(t.out)
 
 	return t.doFlush()
 }
@@ -45,6 +49,8 @@ func (t *Conn) WriteAndFlush(buf *Buffer) error {
 func (t *Conn) Flush() error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+
+	t.flush.Append(t.out)
 
 	return t.doFlush()
 }
@@ -54,8 +60,9 @@ func (t *Conn) String() string {
 }
 
 func (t *Conn) doClose() {
-	syscall.Close(t.fd)
 	t.out.Release()
+	t.flush.Release()
+	syscall.Close(t.fd)
 }
 
 func (t *Conn) doFlush() error {
@@ -64,30 +71,24 @@ func (t *Conn) doFlush() error {
 	}
 	t.flushing = true
 
-	t.flush.Append(t.out)
-
-	return t.flushToFile()
-}
-
-func (t *Conn) flushToFile() error {
 	err := t.flush.writeToFile(t.fd)
-
-	if t.flush.ReadableBytes() == 0 {
-		t.flushing = false
-	}
-
-	if err != nil {
-		if err == syscall.EAGAIN {
-			t.loop.markWrite(t, true)
-			return nil
-		}
-
+	if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
 		t.loop.onConnError(t, err)
 		return err
 	}
 
-	t.loop.markWrite(t, false)
+	if t.flush.ReadableBytes() > 0 {
+		t.loop.markWrite(t, true)
+	} else {
+		t.flushing = false
+	}
+
 	return nil
+}
+
+func (t *Conn) flushCompleted() {
+	t.flushing = false
+	t.loop.markWrite(t, t.flush.ReadableBytes() > 0)
 }
 
 func newConn(id uint64, sa syscall.Sockaddr, fd int) *Conn {
