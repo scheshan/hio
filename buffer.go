@@ -153,10 +153,12 @@ func (t *Buffer) Append(buf *Buffer) error {
 
 //#region read logic
 
+//ReadableBytes return the total bytes can be read in the buffer
 func (t *Buffer) ReadableBytes() int {
 	return t.size
 }
 
+//ReadByte read a single byte. If there is no enough data, return error
 func (t *Buffer) ReadByte() (byte, error) {
 	if err := t.checkSize(1); err != nil {
 		return 0, err
@@ -176,6 +178,7 @@ func (t *Buffer) ReadByte() (byte, error) {
 	return res, nil
 }
 
+//ReadBool return a bool value. If there is no enough data, return error
 func (t *Buffer) ReadBool() (bool, error) {
 	b, err := t.ReadByte()
 	if err != nil {
@@ -185,6 +188,7 @@ func (t *Buffer) ReadBool() (bool, error) {
 	return b != 0, nil
 }
 
+//ReadInt8 return a int8 value. If there is no enough data, return error
 func (t *Buffer) ReadInt8() (int8, error) {
 	b, err := t.ReadByte()
 	if err != nil {
@@ -194,10 +198,12 @@ func (t *Buffer) ReadInt8() (int8, error) {
 	return int8(b), nil
 }
 
+//ReadUInt8 return a uint8 value. If there is no enough data, return error
 func (t *Buffer) ReadUInt8() (uint8, error) {
 	return t.ReadByte()
 }
 
+//ReadInt16 return a int16 value. If there is no enough data, return error
 func (t *Buffer) ReadInt16() (int16, error) {
 	res, err := t.ReadUInt16()
 	if err != nil {
@@ -207,6 +213,7 @@ func (t *Buffer) ReadInt16() (int16, error) {
 	return int16(res), nil
 }
 
+//ReadUInt16 return a uint16 value. If there is no enough data, return error
 func (t *Buffer) ReadUInt16() (uint16, error) {
 	if err := t.checkSize(2); err != nil {
 		return 0, err
@@ -228,6 +235,7 @@ func (t *Buffer) ReadUInt16() (uint16, error) {
 	return res, nil
 }
 
+//ReadInt32 return a uint32 value. If there is no enough data, return error
 func (t *Buffer) ReadInt32() (int32, error) {
 	n, err := t.ReadUInt32()
 	if err != nil {
@@ -237,6 +245,7 @@ func (t *Buffer) ReadInt32() (int32, error) {
 	return int32(n), nil
 }
 
+//ReadUInt32 return a uint32 value. If there is no enough data, return error
 func (t *Buffer) ReadUInt32() (uint32, error) {
 	if err := t.checkSize(4); err != nil {
 		return 0, err
@@ -263,6 +272,7 @@ func (t *Buffer) ReadUInt32() (uint32, error) {
 	return res, nil
 }
 
+//ReadInt64 return a int64 value. If there is no enough data, return error
 func (t *Buffer) ReadInt64() (int64, error) {
 	n, err := t.ReadUInt64()
 	if err != nil {
@@ -272,6 +282,7 @@ func (t *Buffer) ReadInt64() (int64, error) {
 	return int64(n), nil
 }
 
+//ReadUInt64 return a uint64 value. If there is no enough data, return error
 func (t *Buffer) ReadUInt64() (uint64, error) {
 	if err := t.checkSize(8); err != nil {
 		return 0, err
@@ -301,6 +312,7 @@ func (t *Buffer) ReadUInt64() (uint64, error) {
 	return res, nil
 }
 
+//ReadInt return a int value. If there is no enough data, return error
 func (t *Buffer) ReadInt() (int, error) {
 	if strconv.IntSize == 32 {
 		n, err := t.ReadInt32()
@@ -311,6 +323,7 @@ func (t *Buffer) ReadInt() (int, error) {
 	}
 }
 
+//ReadUInt return a uint value. If there is no enough data, return error
 func (t *Buffer) ReadUInt() (uint, error) {
 	if strconv.IntSize == 32 {
 		n, err := t.ReadUInt32()
@@ -321,6 +334,7 @@ func (t *Buffer) ReadUInt() (uint, error) {
 	}
 }
 
+//ReadBytes read n bytes. If there is no enough data, return error
 func (t *Buffer) ReadBytes(n int) ([]byte, error) {
 	if err := t.checkSize(n); err != nil {
 		return nil, err
@@ -349,6 +363,7 @@ func (t *Buffer) ReadBytes(n int) ([]byte, error) {
 	return res, nil
 }
 
+//ReadString read n bytes and convert to string. If there is no enough data, return error
 func (t *Buffer) ReadString(n int) (string, error) {
 	data, err := t.ReadBytes(n)
 	if err != nil {
@@ -358,6 +373,7 @@ func (t *Buffer) ReadString(n int) (string, error) {
 	return t.bytesToString(data), nil
 }
 
+//Skip will ignore n bytes. If there is no enough data, return error
 func (t *Buffer) Skip(n int) error {
 	if err := t.checkSize(n); err != nil {
 		return err
