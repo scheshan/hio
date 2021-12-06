@@ -56,9 +56,15 @@ func (t *Buffer) checkWrite(size int) error {
 func (t *Buffer) readHeadBytes(n int) []byte {
 	res := t.head.readBytes(n)
 
+	t.skipHeadBytes(n)
+
+	return res
+}
+
+func (t *Buffer) skipHeadBytes(n int) {
 	t.head.r += n
 	t.size -= n
-	if t.head.r == t.head.w {
+	if t.head.readableBytes() == 0 {
 		next := t.head.next
 		t.head.release()
 		t.head = next
@@ -67,8 +73,6 @@ func (t *Buffer) readHeadBytes(n int) []byte {
 			t.tail = nil
 		}
 	}
-
-	return res
 }
 
 func (t *Buffer) ensureWritable() {

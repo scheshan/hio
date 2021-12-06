@@ -1,6 +1,9 @@
 package buf
 
-import "strconv"
+import (
+	"golang.org/x/sys/unix"
+	"strconv"
+)
 
 //ReadableBytes return the total bytes can be read in the buffer
 func (t *Buffer) ReadableBytes() int {
@@ -211,4 +214,23 @@ func (t *Buffer) ReadString(n int) (string, error) {
 	}
 
 	return bytesToString(data), nil
+}
+
+func (t *Buffer) ReadToFile(fd int) (int, error) {
+	if t.ReadableBytes() == 0 {
+		return 0, ErrBufferNoEnoughData
+	}
+
+	h := t.head
+	n, err := unix.Write(fd, h.b[h.r:h.w])
+
+	if err != nil {
+		return 0, nil
+	}
+
+	if n > 0 {
+		t.skipHeadBytes(n)
+	}
+
+	return n, nil
 }

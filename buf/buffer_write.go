@@ -1,6 +1,9 @@
 package buf
 
-import "strconv"
+import (
+	"golang.org/x/sys/unix"
+	"strconv"
+)
 
 func (t *Buffer) WriteByte(b byte) error {
 	if err := t.checkWrite(1); err != nil {
@@ -130,4 +133,19 @@ func (t *Buffer) Append(buf *Buffer) error {
 	buf.size = 0
 
 	return nil
+}
+
+func (t *Buffer) WriteFromFile(fd int) (int, error) {
+	t.ensureWritable()
+
+	n, err := unix.Read(fd, t.tail.b[t.tail.w:])
+	if err != nil {
+		return 0, err
+	}
+	if n > 0 {
+		t.tail.w += n
+		t.size += n
+	}
+
+	return n, nil
 }
