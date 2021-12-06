@@ -3,13 +3,14 @@ package hio
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"sync"
 	"syscall"
 )
 
 type Conn struct {
 	id        uint64
-	sa        syscall.Sockaddr
+	sa        unix.Sockaddr
 	fd        int
 	out       *Buffer
 	flush     *Buffer
@@ -111,7 +112,7 @@ func (t *Conn) flushCompleted() {
 	t.loop.markWrite(t, t.flush.ReadableBytes() > 0)
 }
 
-func newConn(id uint64, sa syscall.Sockaddr, fd int) *Conn {
+func newConn(id uint64, sa unix.Sockaddr, fd int) *Conn {
 	conn := &Conn{
 		id:    id,
 		sa:    sa,

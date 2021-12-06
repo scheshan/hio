@@ -2,15 +2,16 @@ package hio
 
 import (
 	"errors"
+	"golang.org/x/sys/unix"
+	"hio/poll"
 	"log"
 	"runtime"
 	"sync/atomic"
-	"syscall"
 )
 
 type tcpServer struct {
-	addr    syscall.Sockaddr
-	nw      *network
+	addr    unix.Sockaddr
+	poller  *poll.Poller
 	running int32
 	lfd     int
 	connId  uint64
@@ -42,31 +43,31 @@ func (t *tcpServer) run() error {
 
 func (t *tcpServer) bindAndListen() error {
 	var soType int
-	if _, ok := t.addr.(*syscall.SockaddrInet4); ok {
-		soType = syscall.AF_INET
+	if _, ok := t.addr.(*unix.SockaddrInet4); ok {
+		soType = unix.AF_INET
 	} else {
-		soType = syscall.AF_INET6
+		soType = unix.AF_INET6
 	}
 
-	fd, err := syscall.Socket(soType, syscall.SOCK_STREAM, 0)
+	fd, err := unix.Socket(soType, unix.SOCK_STREAM, 0)
 	if err != nil {
 		return err
 	}
 	t.lfd = fd
 
-	if err = syscall.SetsockoptInt(t.lfd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+	if err = unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1); err != nil {
 		return err
 	}
 
-	if err = syscall.SetsockoptInt(t.lfd, syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1); err != nil {
+	if err = unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
 		return err
 	}
 
-	if err = syscall.Bind(t.lfd, t.addr); err != nil {
+	if err = unix.Bind(t.lfd, t.addr); err != nil {
 		return err
 	}
 
-	if err = syscall.Listen(t.lfd, 1024); err != nil {
+	if err = unix.Listen(t.lfd, 1024); err != nil {
 		return err
 	}
 
@@ -76,13 +77,13 @@ func (t *tcpServer) bindAndListen() error {
 }
 
 func (t *tcpServer) initNetwork() error {
-	nw, err := newNetwork()
+	p, err := poll.NewPoller()
 	if err != nil {
 		return err
 	}
-	t.nw = nw
+	t.poller = p
 
-	if err := t.nw.addRead(t.lfd); err != nil {
+	if err := t.poller.AddRead(t.lfd); err != nil {
 		return err
 	}
 
@@ -111,9 +112,9 @@ func (t *tcpServer) initEventLoops() error {
 
 func (t *tcpServer) loop() {
 	for t.running == 1 {
-		n, err := t.nw.wait(networkWaitMs)
+		n, err := t.poller.Wait(networkWaitMs)
 		if err != nil {
-			if err == syscall.EAGAIN || err == syscall.EINTR {
+			if err == unix.EAGAIN || err == unix.EINTR {
 				continue
 			}
 			t.shutdown()
@@ -121,9 +122,9 @@ func (t *tcpServer) loop() {
 		}
 
 		for range n {
-			fd, sa, err := syscall.Accept(t.lfd)
+			fd, sa, err := unix.Accept(t.lfd)
 			if err != nil {
-				if err == syscall.EAGAIN || err == syscall.EINTR {
+				if err == unix.EAGAIN || err == unix.EINTR {
 					continue
 				}
 				t.shutdown()
@@ -146,12 +147,12 @@ func (t *tcpServer) handleNewConn(conn *Conn) {
 
 func (t *tcpServer) shutdown() {
 	t.running = 0
-	if t.nw != nil {
-		t.nw.shutdown()
-		t.nw = nil
+	if t.poller != nil {
+		t.poller.Close()
+		t.poller = nil
 	}
 	if t.lfd > 0 {
-		syscall.Close(t.lfd)
+		unix.Close(t.lfd)
 		t.lfd = 0
 	}
 	if t.loops != nil {
