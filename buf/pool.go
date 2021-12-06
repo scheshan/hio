@@ -106,7 +106,7 @@ func returnNode(n *node) {
 }
 
 func NewBuffer() *Buffer {
-	return bufferPool.Get().(*Buffer)
+	return NewBufferSize(bufferMinNodeSize)
 }
 
 func NewBufferSize(size int) *Buffer {
