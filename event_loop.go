@@ -80,7 +80,7 @@ func (t *EventLoop) loop() {
 }
 
 func (t *EventLoop) addIOEvents() {
-	events, err := t.poll.Wait(networkWaitMs)
+	events, err := t.poll.Wait(poll.DefaultWaitMs)
 	if err != nil && err != unix.EAGAIN && err != unix.EINTR {
 		return
 	}

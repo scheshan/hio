@@ -112,7 +112,7 @@ func (t *tcpServer) initEventLoops() error {
 
 func (t *tcpServer) loop() {
 	for t.running == 1 {
-		n, err := t.poller.Wait(networkWaitMs)
+		n, err := t.poller.Wait(poll.DefaultWaitMs)
 		if err != nil {
 			if err == unix.EAGAIN || err == unix.EINTR {
 				continue

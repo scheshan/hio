@@ -1,5 +1,7 @@
 package poll
 
+var DefaultWaitMs int64 = 30000
+
 type PollerEvent struct {
 	id  int
 	typ int
