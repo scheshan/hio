@@ -123,7 +123,12 @@ func (t *Buffer) Append(buf *Buffer) error {
 		return nil
 	}
 
-	t.addTail(buf.head)
+	if t.tail == nil {
+		t.head = buf.head
+	} else {
+		t.tail.next = buf.head
+	}
+
 	t.tail = buf.tail
 
 	t.size += buf.size

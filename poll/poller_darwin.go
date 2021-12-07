@@ -44,16 +44,15 @@ func (t *Poller) Wait(timeoutMs int64) ([]PollerEvent, error) {
 
 	for i := 0; i < n; i++ {
 		ke := t.kEvents[i]
-		pe := t.pEvents[i]
 
-		pe.id = int(ke.Ident)
-		pe.typ = 0
+		t.pEvents[i].id = int(ke.Ident)
+		t.pEvents[i].typ = 0
 
 		if ke.Filter == unix.EVFILT_READ {
-			pe.typ |= 1
+			t.pEvents[i].typ |= 1
 		}
 		if ke.Filter == unix.EVFILT_WRITE {
-			pe.typ |= 2
+			t.pEvents[i].typ |= 2
 		}
 	}
 

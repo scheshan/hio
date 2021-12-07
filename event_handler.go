@@ -66,13 +66,18 @@ func (t *writeConnHandler) Handle() {
 	defer t.release()
 
 	conn := t.conn
-	conn.mutex.Lock()
-	if conn.out.ReadableBytes() > 0 {
-		conn.flush.Append(conn.out)
-	}
-	conn.mutex.Unlock()
 
-	for i := 0; i < 8 && conn.flush.ReadableBytes() > 0; i++ {
+	for i := 0; i < 8; i++ {
+		if conn.out.ReadableBytes() > 0 {
+			conn.mutex.Lock()
+			conn.flush.Append(conn.out)
+			conn.mutex.Unlock()
+		}
+
+		if conn.flush.ReadableBytes() == 0 {
+			return
+		}
+
 		_, err := conn.flush.ReadToFile(conn.fd)
 		if err != nil {
 			if err == unix.EAGAIN {

@@ -152,6 +152,7 @@ func newEventLoop(id uint64, opt ServerOptions) (*EventLoop, error) {
 	loop.opt = opt
 	loop.events = make([]*list.List, 2)
 	loop.mutex = &sync.Mutex{}
+	loop.running = 1
 
 	return loop, nil
 }

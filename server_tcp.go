@@ -140,6 +140,12 @@ func (t *tcpServer) loop() {
 }
 
 func (t *tcpServer) handleNewConn(conn *Conn) {
+	err := unix.SetNonblock(conn.fd, true)
+	if err != nil {
+		conn.release()
+		return
+	}
+
 	//TODO load balance
 	el := t.loops[0]
 	el.bindConn(conn)
