@@ -14,7 +14,7 @@ type Conn struct {
 	out       *buf.Buffer
 	loop      *EventLoop
 	mutex     *sync.Mutex
-	state     int
+	state     int // 1 opened, 0 closed, -1 error
 	attr      map[string]interface{}
 }
 

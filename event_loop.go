@@ -47,6 +47,7 @@ func (t *EventLoop) bindConn(conn *Conn) error {
 		return err
 	}
 
+	conn.state = 1
 	conn.loop = t
 	t.connMap[conn.fd] = conn
 
@@ -71,7 +72,7 @@ func (t *EventLoop) deleteConn(conn *Conn) {
 func (t *EventLoop) loop() {
 	for t.running == 1 {
 		t.processIOEvents()
-		t.addCustomEvents()
+		t.processUserEvents()
 
 		t.processEvents()
 	}
@@ -100,7 +101,7 @@ func (t *EventLoop) processIOEvents() {
 	}
 }
 
-func (t *EventLoop) addCustomEvents() {
+func (t *EventLoop) processUserEvents() {
 	t.mutex.Lock()
 	list := t.events[1]
 	t.events[1] = nil
@@ -131,13 +132,20 @@ func (t *EventLoop) readConn(conn *Conn) {
 	defer b.Release()
 
 	for i := 0; i < 8; i++ {
-		_, err := b.WriteFromFile(conn.fd)
+		n, err := b.WriteFromFile(conn.fd)
 		if err != nil {
 			if err == unix.EAGAIN {
 				break
 			}
 
-			log.Printf("read conn error: %v", err)
+			log.Printf("read conn[%v] error: %v", conn, err)
+			conn.state = -1
+			t.deleteConn(conn)
+			return
+		}
+		if n == 0 {
+			//close by foreign host
+			conn.state = 0
 			t.deleteConn(conn)
 			return
 		}
@@ -166,10 +174,12 @@ func (t *EventLoop) writeConn(conn *Conn) {
 				break
 			}
 
-			log.Printf("write conn error: %v", err)
+			log.Printf("write conn[%v] error: %v", conn, err)
+			conn.state = -1
 			t.deleteConn(conn)
 			return
 		}
+		//TODO handle write to a closed fd
 	}
 
 	if conn.out.ReadableBytes() == 0 {
