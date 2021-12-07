@@ -32,7 +32,7 @@ func (t *tcpServer) run() error {
 		return err
 	}
 
-	if err := t.initNetwork(); err != nil {
+	if err := t.initPoller(); err != nil {
 		return err
 	}
 
@@ -76,7 +76,7 @@ func (t *tcpServer) bindAndListen() error {
 	return nil
 }
 
-func (t *tcpServer) initNetwork() error {
+func (t *tcpServer) initPoller() error {
 	p, err := poll.NewPoller()
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func (t *tcpServer) initEventLoops() error {
 		}
 
 		t.loops[i] = el
-		el.run()
+		go el.loop()
 	}
 
 	return nil
@@ -133,7 +133,7 @@ func (t *tcpServer) loop() {
 
 			t.connId++
 
-			conn := newConn(t.connId, sa, fd)
+			conn := newConn(t.connId, fd, sa)
 			t.handleNewConn(conn)
 		}
 	}
@@ -142,7 +142,7 @@ func (t *tcpServer) loop() {
 func (t *tcpServer) handleNewConn(conn *Conn) {
 	//TODO load balance
 	el := t.loops[0]
-	el.addConn(conn)
+	el.bindConn(conn)
 }
 
 func (t *tcpServer) shutdown() {

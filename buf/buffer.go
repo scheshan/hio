@@ -123,3 +123,15 @@ func (t *Buffer) writeUInt64(n uint64) {
 		t.writeUInt32(uint32(n))
 	}
 }
+
+func (t *Buffer) Release() {
+	for t.head != nil {
+		t.head.release()
+		t.head = t.head.next
+	}
+
+	t.tail = nil
+	t.size = 0
+	t.minNodeSize = 0
+	returnBuffer(t)
+}

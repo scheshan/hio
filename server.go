@@ -2,9 +2,10 @@ package hio
 
 import (
 	"errors"
+	"golang.org/x/sys/unix"
+	"hio/buf"
 	"net"
 	"strconv"
-	"syscall"
 )
 
 type Server interface {
@@ -14,21 +15,21 @@ type Server interface {
 type ServerOptions struct {
 	EventLoopNum     int
 	OnSessionCreated func(conn *Conn)
-	OnSessionRead    func(conn *Conn, buf *Buffer)
+	OnSessionRead    func(conn *Conn, buf *buf.Buffer)
 	OnSessionClosed  func(conn *Conn)
 }
 
-func resolveIpAndPort(ip net.IP, port int) syscall.Sockaddr {
-	var sa syscall.Sockaddr
+func resolveIpAndPort(ip net.IP, port int) unix.Sockaddr {
+	var sa unix.Sockaddr
 	var addr []byte
 
 	if ip == nil || len(ip) == net.IPv4len {
-		sa4 := &syscall.SockaddrInet4{}
+		sa4 := &unix.SockaddrInet4{}
 		sa4.Port = port
 		addr = sa4.Addr[:]
 		sa = sa4
 	} else {
-		sa6 := &syscall.SockaddrInet6{}
+		sa6 := &unix.SockaddrInet6{}
 		sa6.Port = port
 		addr = sa6.Addr[:]
 		sa = sa6
@@ -41,14 +42,14 @@ func resolveIpAndPort(ip net.IP, port int) syscall.Sockaddr {
 	return sa
 }
 
-func resolveAddr(addr string) (proto string, sa syscall.Sockaddr, err error) {
+func resolveAddr(addr string) (proto string, sa unix.Sockaddr, err error) {
 	port, err := strconv.Atoi(addr)
 	if err != nil {
 		return "", nil, err
 	}
 
 	proto = "tcp"
-	sa = &syscall.SockaddrInet4{
+	sa = &unix.SockaddrInet4{
 		Port: port,
 		Addr: [4]byte{},
 	}
@@ -109,7 +110,7 @@ func Serve(addr string, opt ServerOptions) (Server, error) {
 	}
 }
 
-func serveTcp(sa syscall.Sockaddr, opt ServerOptions) (Server, error) {
+func serveTcp(sa unix.Sockaddr, opt ServerOptions) (Server, error) {
 	srv := &tcpServer{}
 	srv.addr = sa
 	srv.opt = opt

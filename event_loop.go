@@ -1,30 +1,50 @@
 package hio
 
 import (
-	"io"
-	"log"
+	"container/list"
+	"golang.org/x/sys/unix"
+	"hio/poll"
+	"sync"
 	"sync/atomic"
-	"syscall"
 )
 
 type EventLoop struct {
-	nw      *network
+	poll    *poll.Poller
 	id      uint64
 	connMap map[int]*Conn
-	buf     []byte
 	running int32
 	opt     ServerOptions
+	events  []*list.List
+	awake   int32
+	mutex   *sync.Mutex
 }
 
-func (t *EventLoop) addConn(conn *Conn) {
-	if err := syscall.SetNonblock(conn.fd, true); err != nil {
-		conn.doClose()
-		return
-	}
+func (t *EventLoop) Id() uint64 {
+	return t.id
+}
 
-	if err := t.nw.addRead(conn.fd); err != nil {
-		conn.doClose()
-		return
+func (t *EventLoop) AddEvent(h EventHandler) {
+	t.mutex.Lock()
+
+	t.addEvent(1, h)
+
+	t.mutex.Unlock()
+
+	if atomic.CompareAndSwapInt32(&t.awake, 0, 1) {
+		t.poll.Wakeup()
+	}
+}
+
+func (t *EventLoop) addEvent(ind int, h EventHandler) {
+	if t.events[ind] == nil {
+		t.events[ind] = &list.List{}
+	}
+	t.events[ind].PushBack(h)
+}
+
+func (t *EventLoop) bindConn(conn *Conn) error {
+	if err := t.poll.AddRead(conn.fd); err != nil {
+		return err
 	}
 
 	conn.loop = t
@@ -33,160 +53,94 @@ func (t *EventLoop) addConn(conn *Conn) {
 	if t.opt.OnSessionCreated != nil {
 		t.opt.OnSessionCreated(conn)
 	}
-}
-
-func (t *EventLoop) deleteConn(conn *Conn) {
-	delete(t.connMap, conn.fd)
-	conn.doClose()
-}
-
-func (t *EventLoop) loop() {
-	for t.running == 1 {
-		events, err := t.nw.wait(networkWaitMs)
-		if err != nil {
-			if err == syscall.EAGAIN || err == syscall.EINTR {
-				continue
-			}
-			if err == syscall.EBADF {
-				return
-			}
-
-			panic(err)
-		}
-
-		if len(events) == 0 {
-			continue
-		}
-
-		for _, ev := range events {
-			if ev.canRead() {
-				conn := t.connMap[ev.fd]
-				if conn != nil {
-					t.readConn(conn)
-				}
-			}
-			if ev.canWrite() {
-				conn := t.connMap[ev.fd]
-				if conn != nil {
-					t.writeConn(conn)
-				}
-			}
-		}
-	}
-}
-
-func (t *EventLoop) readConn(conn *Conn) {
-	buf := pool.getBuffer()
-	defer func() {
-		buf.Release()
-	}()
-
-	n, err := buf.readFromFile(conn.fd)
-	if err != nil && err != syscall.EAGAIN {
-		t.onConnError(conn, err)
-		return
-	}
-
-	if n == 0 {
-		t.onConnError(conn, io.EOF)
-		return
-	}
-
-	if t.opt.OnSessionRead != nil {
-		t.opt.OnSessionRead(conn, buf)
-	}
-}
-
-func (t *EventLoop) writeConn(conn *Conn) {
-	conn.mutex.Lock()
-	defer conn.mutex.Unlock()
-
-	t.flushConn(conn)
-}
-
-func (t *EventLoop) flushConn(conn *Conn) error {
-	err := conn.flush.writeToFile(conn.fd)
-	if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
-		t.onConnError(conn, err)
-		return err
-	}
-
-	if conn.flush.ReadableBytes() > 0 {
-		if !conn.flushMask {
-			conn.flushMask = true
-			t.markWrite(conn, true)
-		}
-	} else {
-		conn.flushing = false
-		if conn.flushMask {
-			conn.flushMask = false
-			t.markWrite(conn, false)
-		}
-
-		if !conn.Active() {
-			t.deleteConn(conn)
-		}
-	}
 
 	return nil
 }
 
-func (t *EventLoop) run() {
-	if !atomic.CompareAndSwapInt32(&t.running, 0, 1) {
-		return
-	}
+func (t *EventLoop) deleteConn(conn *Conn) {
+	t.poll.RemoveReadWrite(conn.fd)
 
-	go t.loop()
-}
+	delete(t.connMap, conn.fd)
+	conn.release()
 
-func (t *EventLoop) shutdown() {
-	if !atomic.CompareAndSwapInt32(&t.running, 1, 0) {
-		return
-	}
-
-	if t.nw != nil {
-		t.nw.shutdown()
-	}
-
-	if t.connMap != nil {
-		cm := t.connMap
-		t.connMap = nil
-		for _, conn := range cm {
-			conn.doClose()
-		}
-	}
-}
-
-func (t *EventLoop) markWrite(conn *Conn, mask bool) {
-	var err error
-	if mask {
-		err = t.nw.addWrite(conn.fd)
-	} else {
-		err = t.nw.removeWrite(conn.fd)
-	}
-	if err != nil {
-		t.onConnError(conn, err)
-	}
-}
-
-func (t *EventLoop) onConnError(conn *Conn, err error) {
-	conn.state = -2
-
-	log.Printf("error occours when operate conn[%s]: %v", conn, err)
-
-	t.nw.removeReadWrite(conn.fd)
-	t.deleteConn(conn)
 	if t.opt.OnSessionClosed != nil {
 		t.opt.OnSessionClosed(conn)
 	}
 }
 
-func (t *EventLoop) Id() uint64 {
-	return t.id
+func (t *EventLoop) loop() {
+	for t.running == 1 {
+		t.addIOEvents()
+		t.addCustomEvents()
+
+		t.processEvents()
+	}
+
+	t.release()
+}
+
+func (t *EventLoop) addIOEvents() {
+	events, err := t.poll.Wait(networkWaitMs)
+	if err != nil && err != unix.EAGAIN && err != unix.EINTR {
+		return
+	}
+
+	for _, event := range events {
+		conn := t.connMap[event.Id()]
+		if conn == nil {
+			continue
+		}
+
+		if event.CanRead() {
+			t.addEvent(0, newReadConnHandler(conn))
+		}
+		if event.CanWrite() {
+			t.addEvent(0, newWriteConnHandler(conn))
+		}
+	}
+}
+
+func (t *EventLoop) addCustomEvents() {
+	t.mutex.Lock()
+	list := t.events[1]
+	t.events[1] = nil
+	t.mutex.Unlock()
+
+	for list != nil && list.Front() != nil {
+		f := list.Front()
+		t.addEvent(0, f.Value.(EventHandler))
+		list.Remove(f)
+	}
+}
+
+func (t *EventLoop) processEvents() {
+	list := t.events[0]
+
+	for list != nil && list.Front() != nil {
+		f := list.Front()
+		h := f.Value.(EventHandler)
+
+		h.Handle()
+
+		list.Remove(f)
+	}
+}
+
+func (t *EventLoop) shutdown() {
+	t.running = 0
+}
+
+func (t *EventLoop) release() {
+	t.poll.Close()
+	for _, conn := range t.connMap {
+		conn.release()
+	}
+
+	t.connMap = nil
 }
 
 func newEventLoop(id uint64, opt ServerOptions) (*EventLoop, error) {
-	nw, err := newNetwork()
+	poll, err := poll.NewPoller()
 	if err != nil {
 		return nil, err
 	}
@@ -194,9 +148,10 @@ func newEventLoop(id uint64, opt ServerOptions) (*EventLoop, error) {
 	loop := &EventLoop{}
 	loop.id = id
 	loop.connMap = make(map[int]*Conn)
-	loop.buf = make([]byte, 40960)
-	loop.nw = nw
+	loop.poll = poll
 	loop.opt = opt
+	loop.events = make([]*list.List, 2)
+	loop.mutex = &sync.Mutex{}
 
 	return loop, nil
 }
