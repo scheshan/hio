@@ -3,7 +3,9 @@ package hio
 import (
 	"container/list"
 	"golang.org/x/sys/unix"
+	"hio/buf"
 	"hio/poll"
+	"log"
 	"sync"
 	"sync/atomic"
 )
@@ -23,11 +25,9 @@ func (t *EventLoop) Id() uint64 {
 	return t.id
 }
 
-func (t *EventLoop) AddEvent(h EventHandler) {
+func (t *EventLoop) QueueEvent(f EventFunc) {
 	t.mutex.Lock()
-
-	t.addEvent(1, h)
-
+	t.queueEvent(1, f)
 	t.mutex.Unlock()
 
 	if atomic.CompareAndSwapInt32(&t.awake, 0, 1) {
@@ -35,11 +35,11 @@ func (t *EventLoop) AddEvent(h EventHandler) {
 	}
 }
 
-func (t *EventLoop) addEvent(ind int, h EventHandler) {
+func (t *EventLoop) queueEvent(ind int, f EventFunc) {
 	if t.events[ind] == nil {
 		t.events[ind] = &list.List{}
 	}
-	t.events[ind].PushBack(h)
+	t.events[ind].PushBack(f)
 }
 
 func (t *EventLoop) bindConn(conn *Conn) error {
@@ -70,7 +70,7 @@ func (t *EventLoop) deleteConn(conn *Conn) {
 
 func (t *EventLoop) loop() {
 	for t.running == 1 {
-		t.addIOEvents()
+		t.processIOEvents()
 		t.addCustomEvents()
 
 		t.processEvents()
@@ -79,7 +79,7 @@ func (t *EventLoop) loop() {
 	t.release()
 }
 
-func (t *EventLoop) addIOEvents() {
+func (t *EventLoop) processIOEvents() {
 	events, err := t.poll.Wait(poll.DefaultWaitMs)
 	if err != nil && err != unix.EAGAIN && err != unix.EINTR {
 		return
@@ -92,10 +92,10 @@ func (t *EventLoop) addIOEvents() {
 		}
 
 		if event.CanRead() {
-			t.addEvent(0, newReadConnHandler(conn))
+			t.queueEvent(0, connEventFunc(t.readConn, conn))
 		}
 		if event.CanWrite() {
-			t.addEvent(0, newWriteConnHandler(conn))
+			t.queueEvent(0, connEventFunc(t.writeConn, conn))
 		}
 	}
 }
@@ -108,7 +108,7 @@ func (t *EventLoop) addCustomEvents() {
 
 	for list != nil && list.Front() != nil {
 		f := list.Front()
-		t.addEvent(0, f.Value.(EventHandler))
+		t.queueEvent(0, f.Value.(EventFunc))
 		list.Remove(f)
 	}
 }
@@ -118,11 +118,63 @@ func (t *EventLoop) processEvents() {
 
 	for list != nil && list.Front() != nil {
 		f := list.Front()
-		h := f.Value.(EventHandler)
+		h := f.Value.(EventFunc)
 
-		h.Handle()
+		h()
 
 		list.Remove(f)
+	}
+}
+
+func (t *EventLoop) readConn(conn *Conn) {
+	b := buf.NewBuffer()
+	defer b.Release()
+
+	for i := 0; i < 8; i++ {
+		_, err := b.WriteFromFile(conn.fd)
+		if err != nil {
+			if err == unix.EAGAIN {
+				break
+			}
+
+			log.Printf("read conn error: %v", err)
+			t.deleteConn(conn)
+			return
+		}
+	}
+
+	if t.opt.OnSessionRead != nil {
+		t.opt.OnSessionRead(conn, b)
+	}
+}
+
+func (t *EventLoop) writeConn(conn *Conn) {
+	if conn.writeFlag == 0 {
+		conn.writeFlag = 1
+		t.poll.AddWrite(conn.fd)
+		return
+	}
+
+	for i := 0; i < 8; i++ {
+		if conn.out.ReadableBytes() == 0 {
+			break
+		}
+
+		_, err := conn.out.ReadToFile(conn.fd)
+		if err != nil {
+			if err == unix.EAGAIN {
+				break
+			}
+
+			log.Printf("write conn error: %v", err)
+			t.deleteConn(conn)
+			return
+		}
+	}
+
+	if conn.out.ReadableBytes() == 0 {
+		t.poll.RemoveWrite(conn.fd)
+		conn.writeFlag = 0
 	}
 }
 
