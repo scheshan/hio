@@ -98,14 +98,13 @@ func (t *Buffer) WriteBytes(data []byte) (err error) {
 		return err
 	}
 
-	t.size += len(data)
-
 	if t.tail == nil {
 		t.addNewNodeData(data)
 		return
 	}
 
 	n := t.tail.writeBytes(data)
+	t.size += n
 	if n == len(data) {
 		return
 	}
