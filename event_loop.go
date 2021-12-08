@@ -168,7 +168,7 @@ func (t *EventLoop) writeConn(conn *Conn) {
 		conn.writeFlag = 1
 		err := t.poll.EnableWrite(conn.fd)
 		if err != nil {
-			log.Printf("add write failed: %v", err)
+			//log.Printf("add write failed: %v", err)
 		}
 		return
 	}
@@ -195,7 +195,7 @@ func (t *EventLoop) writeConn(conn *Conn) {
 	if conn.out.ReadableBytes() == 0 {
 		err := t.poll.DisableWrite(conn.fd)
 		if err != nil {
-			log.Printf("remove write failed: %v", err)
+			//log.Printf("remove write failed: %v", err)
 		}
 		conn.writeFlag = 0
 	}
