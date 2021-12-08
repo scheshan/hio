@@ -2,8 +2,8 @@ package hio
 
 import (
 	"errors"
+	"github.com/scheshan/hio/poll"
 	"golang.org/x/sys/unix"
-	"hio/poll"
 	"log"
 	"runtime"
 	"sync/atomic"

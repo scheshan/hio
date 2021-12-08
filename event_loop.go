@@ -2,9 +2,9 @@ package hio
 
 import (
 	"container/list"
+	"github.com/scheshan/hio/buf"
+	"github.com/scheshan/hio/poll"
 	"golang.org/x/sys/unix"
-	"hio/buf"
-	"hio/poll"
 	"log"
 	"sync"
 )

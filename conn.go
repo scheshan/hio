@@ -2,8 +2,8 @@ package hio
 
 import (
 	"errors"
+	"github.com/scheshan/hio/buf"
 	"golang.org/x/sys/unix"
-	"hio/buf"
 	"sync"
 	"sync/atomic"
 )
