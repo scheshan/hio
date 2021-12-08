@@ -13,6 +13,7 @@ type Server interface {
 }
 
 type ServerOptions struct {
+	LoadBalancer     LoadBalancer
 	EventLoopNum     int
 	OnSessionCreated func(conn *Conn)
 	OnSessionRead    func(conn *Conn, buf *buf.Buffer)

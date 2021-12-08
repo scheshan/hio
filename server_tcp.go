@@ -107,6 +107,10 @@ func (t *tcpServer) initEventLoops() error {
 		go el.loop()
 	}
 
+	if t.opt.LoadBalancer == nil {
+		t.opt.LoadBalancer = &LoadBalancerRoundRobin{}
+	}
+
 	return nil
 }
 
@@ -146,9 +150,8 @@ func (t *tcpServer) handleNewConn(conn *Conn) {
 		return
 	}
 
-	//TODO load balance
-	el := t.loops[0]
-	el.bindConn(conn)
+	loop := t.opt.LoadBalancer.Choose(t.loops)
+	loop.bindConn(conn)
 }
 
 func (t *tcpServer) shutdown() {
