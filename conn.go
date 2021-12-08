@@ -57,6 +57,14 @@ func (t *Conn) Close() error {
 	return nil
 }
 
+func (t *Conn) SetAttr(key string, value interface{}) {
+	t.attr[key] = value
+}
+
+func (t *Conn) Attr(key string) interface{} {
+	return t.attr[key]
+}
+
 func (t *Conn) release() {
 	unix.Close(t.fd)
 
