@@ -201,6 +201,11 @@ func (t *EventLoop) writeConn(conn *Conn) {
 	}
 }
 
+func (t *EventLoop) closeConn(conn *Conn) {
+	conn.state = -2
+	t.deleteConn(conn)
+}
+
 func (t *EventLoop) shutdown() {
 	t.running = 0
 }

@@ -1,10 +1,14 @@
 package hio
 
 import (
+	"errors"
 	"golang.org/x/sys/unix"
 	"hio/buf"
 	"sync"
+	"sync/atomic"
 )
+
+var ErrConnNonActive = errors.New("failed to operate on a non-active conn")
 
 type Conn struct {
 	id        uint64
@@ -14,11 +18,15 @@ type Conn struct {
 	out       *buf.Buffer
 	loop      *EventLoop
 	mutex     *sync.Mutex
-	state     int // 1 opened, 0 closed, -1 error
+	state     int32 // 1 opened, 0 half closed, -1 error, -2 closed
 	attr      map[string]interface{}
 }
 
-func (t *Conn) Write(buffer *buf.Buffer) {
+func (t *Conn) Write(buffer *buf.Buffer) error {
+	if !t.Active() {
+		return ErrConnNonActive
+	}
+
 	if buffer.ReadableBytes() > 0 {
 		b := buf.NewBuffer()
 		b.Append(buffer)
@@ -28,10 +36,25 @@ func (t *Conn) Write(buffer *buf.Buffer) {
 			t.loop.writeConn(t)
 		})
 	}
+
+	return nil
 }
 
 func (t *Conn) EventLoop() *EventLoop {
 	return t.loop
+}
+
+func (t *Conn) Active() bool {
+	return t.state > 0
+}
+
+func (t *Conn) Close() error {
+	if !atomic.CompareAndSwapInt32(&t.state, 1, 0) {
+		return ErrConnNonActive
+	}
+
+	t.loop.QueueEvent(connEventFunc(t.loop.closeConn, t))
+	return nil
 }
 
 func (t *Conn) release() {
