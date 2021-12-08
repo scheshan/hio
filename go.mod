@@ -1,4 +1,4 @@
-module hio
+module github.com/scheshan/hio
 
 go 1.16
 
