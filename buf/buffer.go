@@ -1,6 +1,8 @@
 package buf
 
-import "errors"
+import (
+	"errors"
+)
 
 var bufferMinNodeSize = 8192
 var bufferMaxNodeSize = 2 << 20
@@ -12,6 +14,7 @@ type Buffer struct {
 	tail        *node
 	size        int
 	minNodeSize int
+	ref         int
 }
 
 func (t *Buffer) addNewNode() {
@@ -125,6 +128,15 @@ func (t *Buffer) writeUInt64(n uint64) {
 }
 
 func (t *Buffer) Release() {
+	if t.ref <= 0 {
+		return
+	}
+
+	t.ref--
+	if t.ref > 0 {
+		return
+	}
+
 	for t.head != nil {
 		t.head.release()
 		t.head = t.head.next
@@ -134,4 +146,8 @@ func (t *Buffer) Release() {
 	t.size = 0
 	t.minNodeSize = 0
 	returnBuffer(t)
+}
+
+func (t *Buffer) IncrRef() {
+	t.ref++
 }

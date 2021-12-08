@@ -27,12 +27,12 @@ func (t *Conn) Write(buffer *buf.Buffer) error {
 		return ErrConnNonActive
 	}
 
+	buffer.IncrRef()
+
 	if buffer.ReadableBytes() > 0 {
-		b := buf.NewBuffer()
-		b.Append(buffer)
 		t.loop.QueueEvent(func() {
-			t.out.Append(b)
-			b.Release()
+			t.out.Append(buffer)
+			buffer.Release()
 			t.loop.writeConn(t)
 		})
 	}
