@@ -120,6 +120,7 @@ func NewBufferSize(size int) *Buffer {
 
 	buf := bufferPool.Get().(*Buffer)
 	buf.minNodeSize = size
+	buf.IncrRef()
 
 	return buf
 }
