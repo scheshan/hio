@@ -9,28 +9,20 @@ type Poller struct {
 	ts      *unix.Timespec
 }
 
-func (t *Poller) AddRead(fd int) error {
+func (t *Poller) Add(fd int) error {
 	return t.addChanges(fd, unix.EV_ADD, unix.EVFILT_READ)
 }
 
-func (t *Poller) AddWrite(fd int) error {
+func (t *Poller) Delete(fd int) error {
+	return t.addChanges(fd, unix.EV_DELETE|unix.EV_ONESHOT, unix.EVFILT_READ, unix.EVFILT_WRITE)
+}
+
+func (t *Poller) EnableWrite(fd int) error {
 	return t.addChanges(fd, unix.EV_ADD, unix.EVFILT_WRITE)
 }
 
-func (t *Poller) AddReadWrite(fd int) error {
-	return t.addChanges(fd, unix.EV_ADD, unix.EVFILT_READ, unix.EVFILT_WRITE)
-}
-
-func (t *Poller) RemoveRead(fd int) error {
-	return t.addChanges(fd, unix.EV_DELETE, unix.EVFILT_READ)
-}
-
-func (t *Poller) RemoveWrite(fd int) error {
-	return t.addChanges(fd, unix.EV_DELETE, unix.EVFILT_WRITE)
-}
-
-func (t *Poller) RemoveReadWrite(fd int) error {
-	return t.addChanges(fd, unix.EV_DELETE, unix.EVFILT_READ, unix.EVFILT_WRITE)
+func (t *Poller) DisableWrite(fd int) error {
+	return t.addChanges(fd, unix.EV_DELETE|unix.EV_ONESHOT, unix.EVFILT_WRITE)
 }
 
 func (t *Poller) Wait(timeoutMs int64) ([]PollerEvent, error) {

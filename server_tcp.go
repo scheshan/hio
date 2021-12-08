@@ -83,7 +83,7 @@ func (t *tcpServer) initPoller() error {
 	}
 	t.poller = p
 
-	if err := t.poller.AddRead(t.lfd); err != nil {
+	if err := t.poller.Add(t.lfd); err != nil {
 		return err
 	}
 

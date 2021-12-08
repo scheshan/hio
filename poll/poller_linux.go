@@ -11,28 +11,29 @@ type Poller struct {
 	pEvents []PollerEvent
 }
 
-func (t *Poller) AddRead(fd int) error {
-	return t.addEvent(fd, unix.EPOLL_CTL_ADD, unix.EPOLLIN)
+func (t *Poller) Add(fd int) error {
+	return unix.EpollCtl(t.ep, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
+		Fd:     int32(fd),
+		Events: unix.EPOLLIN,
+	})
 }
 
-func (t *Poller) AddWrite(fd int) error {
-	return t.addEvent(fd, unix.EPOLL_CTL_ADD, unix.EPOLLOUT)
+func (t *Poller) Delete(fd int) error {
+	return unix.EpollCtl(t.ep, unix.EPOLL_CTL_DEL, fd, nil)
 }
 
-func (t *Poller) AddReadWrite(fd int) error {
-	return t.addEvent(fd, unix.EPOLL_CTL_ADD, unix.EPOLLIN|unix.EPOLLOUT)
+func (t *Poller) EnableWrite(fd int) error {
+	return unix.EpollCtl(t.ep, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
+		Fd:     int32(fd),
+		Events: unix.EPOLLIN | unix.EPOLLOUT,
+	})
 }
 
-func (t *Poller) RemoveRead(fd int) error {
-	return t.addEvent(fd, unix.EPOLL_CTL_DEL, unix.EPOLLIN)
-}
-
-func (t *Poller) RemoveWrite(fd int) error {
-	return t.addEvent(fd, unix.EPOLL_CTL_DEL, unix.EPOLLOUT)
-}
-
-func (t *Poller) RemoveReadWrite(fd int) error {
-	return t.addEvent(fd, unix.EPOLL_CTL_DEL, unix.EPOLLIN|unix.EPOLLOUT)
+func (t *Poller) DisableWrite(fd int) error {
+	return unix.EpollCtl(t.ep, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
+		Fd:     int32(fd),
+		Events: unix.EPOLLIN,
+	})
 }
 
 func (t *Poller) Wait(timeoutMs int64) ([]PollerEvent, error) {
@@ -84,14 +85,6 @@ func (t *Poller) Close() {
 	t.pEvents = nil
 }
 
-func (t *Poller) addEvent(fd int, op int, events uint32) error {
-	event := &unix.EpollEvent{}
-	event.Fd = int32(fd)
-	event.Events = events
-
-	return unix.EpollCtl(t.ep, op, fd, event)
-}
-
 func (t *Poller) incrEvents(size int) {
 	t.eEvents = make([]unix.EpollEvent, size)
 	t.pEvents = make([]PollerEvent, size)
@@ -113,7 +106,7 @@ func NewPoller() (*Poller, error) {
 	}
 	p.ef = ef
 
-	err = p.addEvent(ef, unix.EPOLL_CTL_ADD, unix.EPOLLIN)
+	err = p.Add(ef)
 	if err != nil {
 		p.Close()
 		return nil, err

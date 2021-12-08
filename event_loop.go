@@ -7,7 +7,6 @@ import (
 	"hio/poll"
 	"log"
 	"sync"
-	"sync/atomic"
 )
 
 type EventLoop struct {
@@ -26,11 +25,17 @@ func (t *EventLoop) Id() uint64 {
 }
 
 func (t *EventLoop) QueueEvent(f EventFunc) {
+	awake := false
+
 	t.mutex.Lock()
 	t.queueEvent(1, f)
+	if t.awake == 0 {
+		t.awake = 1
+		awake = true
+	}
 	t.mutex.Unlock()
 
-	if atomic.CompareAndSwapInt32(&t.awake, 0, 1) {
+	if awake {
 		t.poll.Wakeup()
 	}
 }
@@ -43,7 +48,7 @@ func (t *EventLoop) queueEvent(ind int, f EventFunc) {
 }
 
 func (t *EventLoop) bindConn(conn *Conn) error {
-	if err := t.poll.AddRead(conn.fd); err != nil {
+	if err := t.poll.Add(conn.fd); err != nil {
 		return err
 	}
 
@@ -59,7 +64,7 @@ func (t *EventLoop) bindConn(conn *Conn) error {
 }
 
 func (t *EventLoop) deleteConn(conn *Conn) {
-	t.poll.RemoveReadWrite(conn.fd)
+	t.poll.Delete(conn.fd)
 
 	delete(t.connMap, conn.fd)
 	conn.release()
@@ -105,6 +110,7 @@ func (t *EventLoop) processUserEvents() {
 	t.mutex.Lock()
 	list := t.events[1]
 	t.events[1] = nil
+	t.awake = 0
 	t.mutex.Unlock()
 
 	for list != nil && list.Front() != nil {
@@ -112,6 +118,7 @@ func (t *EventLoop) processUserEvents() {
 		t.queueEvent(0, f.Value.(EventFunc))
 		list.Remove(f)
 	}
+
 }
 
 func (t *EventLoop) processEvents() {
@@ -159,7 +166,10 @@ func (t *EventLoop) readConn(conn *Conn) {
 func (t *EventLoop) writeConn(conn *Conn) {
 	if conn.writeFlag == 0 {
 		conn.writeFlag = 1
-		t.poll.AddWrite(conn.fd)
+		err := t.poll.EnableWrite(conn.fd)
+		if err != nil {
+			log.Printf("add write failed: %v", err)
+		}
 		return
 	}
 
@@ -183,7 +193,10 @@ func (t *EventLoop) writeConn(conn *Conn) {
 	}
 
 	if conn.out.ReadableBytes() == 0 {
-		t.poll.RemoveWrite(conn.fd)
+		err := t.poll.DisableWrite(conn.fd)
+		if err != nil {
+			log.Printf("remove write failed: %v", err)
+		}
 		conn.writeFlag = 0
 	}
 }

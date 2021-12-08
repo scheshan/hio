@@ -21,6 +21,7 @@ type Conn struct {
 func (t *Conn) Write(buffer *buf.Buffer) {
 	if buffer.ReadableBytes() > 0 {
 		b := buf.NewBuffer()
+		b.Append(buffer)
 		t.loop.QueueEvent(func() {
 			t.out.Append(b)
 			b.Release()
