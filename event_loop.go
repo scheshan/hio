@@ -15,7 +15,7 @@ type EventLoop struct {
 	connMap map[int]*Conn
 	running int32
 	opt     ServerOptions
-	events  []*list.List
+	events  *list.List
 	awake   int32
 	mutex   *sync.Mutex
 }
@@ -28,7 +28,11 @@ func (t *EventLoop) QueueEvent(f EventFunc) {
 	awake := false
 
 	t.mutex.Lock()
-	t.queueEvent(1, f)
+	if t.events == nil {
+		t.events = &list.List{}
+	}
+	t.events.PushBack(f)
+
 	if t.awake == 0 {
 		t.awake = 1
 		awake = true
@@ -38,13 +42,6 @@ func (t *EventLoop) QueueEvent(f EventFunc) {
 	if awake {
 		t.poll.Wakeup()
 	}
-}
-
-func (t *EventLoop) queueEvent(ind int, f EventFunc) {
-	if t.events[ind] == nil {
-		t.events[ind] = &list.List{}
-	}
-	t.events[ind].PushBack(f)
 }
 
 func (t *EventLoop) bindConn(conn *Conn) error {
@@ -78,8 +75,6 @@ func (t *EventLoop) loop() {
 	for t.running == 1 {
 		t.processIOEvents()
 		t.processUserEvents()
-
-		t.processEvents()
 	}
 
 	t.release()
@@ -98,43 +93,30 @@ func (t *EventLoop) processIOEvents() {
 		}
 
 		if event.CanRead() {
-			t.queueEvent(0, connEventFunc(t.readConn, conn))
+			t.handleReadConn(conn)
 		}
 		if event.CanWrite() {
-			t.queueEvent(0, connEventFunc(t.writeConn, conn))
+			t.handleWriteConn(conn)
 		}
 	}
 }
 
 func (t *EventLoop) processUserEvents() {
 	t.mutex.Lock()
-	list := t.events[1]
-	t.events[1] = nil
+	list := t.events
+	t.events = nil
 	t.awake = 0
 	t.mutex.Unlock()
 
 	for list != nil && list.Front() != nil {
 		f := list.Front()
-		t.queueEvent(0, f.Value.(EventFunc))
-		list.Remove(f)
+		ef := f.Value.(EventFunc)
+		ef()
 	}
 
 }
 
-func (t *EventLoop) processEvents() {
-	list := t.events[0]
-
-	for list != nil && list.Front() != nil {
-		f := list.Front()
-		h := f.Value.(EventFunc)
-
-		h()
-
-		list.Remove(f)
-	}
-}
-
-func (t *EventLoop) readConn(conn *Conn) {
+func (t *EventLoop) handleReadConn(conn *Conn) {
 	b := buf.NewBuffer()
 	defer b.Release()
 
@@ -163,7 +145,7 @@ func (t *EventLoop) readConn(conn *Conn) {
 	}
 }
 
-func (t *EventLoop) writeConn(conn *Conn) {
+func (t *EventLoop) handleWriteConn(conn *Conn) {
 	if conn.writeFlag == 0 {
 		conn.writeFlag = 1
 		err := t.poll.EnableWrite(conn.fd)
@@ -230,7 +212,6 @@ func newEventLoop(id uint64, opt ServerOptions) (*EventLoop, error) {
 	loop.connMap = make(map[int]*Conn)
 	loop.poll = poll
 	loop.opt = opt
-	loop.events = make([]*list.List, 2)
 	loop.mutex = &sync.Mutex{}
 	loop.running = 1
 

@@ -33,7 +33,7 @@ func (t *Conn) Write(buffer *buf.Buffer) error {
 		t.loop.QueueEvent(func() {
 			t.out.Append(buffer)
 			buffer.Release()
-			t.loop.writeConn(t)
+			t.loop.handleWriteConn(t)
 		})
 	}
 
