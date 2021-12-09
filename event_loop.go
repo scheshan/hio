@@ -112,6 +112,7 @@ func (t *EventLoop) processUserEvents() {
 		f := list.Front()
 		ef := f.Value.(EventFunc)
 		ef()
+		list.Remove(f)
 	}
 
 }
