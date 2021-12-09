@@ -165,7 +165,6 @@ func (t *EventLoop) writeConn(conn *Conn, buffer *buf.Buffer) {
 	}
 
 	conn.out.Append(buffer)
-	buffer.Release()
 
 	if conn.out.ReadableBytes() == 0 || conn.writeFlag == 1 {
 		return
