@@ -221,6 +221,10 @@ func (t *Buffer) ReadToFile(fd int) (int, error) {
 		return 0, ErrBufferNoEnoughData
 	}
 
+	for t.head.readableBytes() == 0 {
+		t.head = t.head.next
+	}
+
 	h := t.head
 	n, err := unix.Write(fd, h.b[h.r:h.w])
 
