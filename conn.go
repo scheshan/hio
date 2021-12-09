@@ -31,9 +31,8 @@ func (t *Conn) Write(buffer *buf.Buffer) error {
 
 	if buffer.ReadableBytes() > 0 {
 		t.loop.QueueEvent(func() {
-			t.out.Append(buffer)
+			t.loop.writeConn(t, buffer)
 			buffer.Release()
-			t.loop.handleWriteConn(t)
 		})
 	}
 

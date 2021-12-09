@@ -93,10 +93,10 @@ func (t *EventLoop) processIOEvents() {
 		}
 
 		if event.CanRead() {
-			t.handleReadConn(conn)
+			t.handleConnRead(conn)
 		}
 		if event.CanWrite() {
-			t.handleWriteConn(conn)
+			t.handleConnWrite(conn)
 		}
 	}
 }
@@ -117,7 +117,7 @@ func (t *EventLoop) processUserEvents() {
 
 }
 
-func (t *EventLoop) handleReadConn(conn *Conn) {
+func (t *EventLoop) handleConnRead(conn *Conn) {
 	b := buf.NewBuffer()
 	defer b.Release()
 
@@ -146,21 +146,41 @@ func (t *EventLoop) handleReadConn(conn *Conn) {
 	}
 }
 
-func (t *EventLoop) handleWriteConn(conn *Conn) {
-	if conn.writeFlag == 0 {
-		conn.writeFlag = 1
-		err := t.poll.EnableWrite(conn.fd)
-		if err != nil {
-			//log.Printf("add write failed: %v", err)
-		}
+func (t *EventLoop) handleConnWrite(conn *Conn) {
+	if !conn.Active() {
 		return
 	}
 
-	for i := 0; i < 8; i++ {
-		if conn.out.ReadableBytes() == 0 {
-			break
-		}
+	t.writeConn0(conn)
 
+	if conn.out.ReadableBytes() == 0 {
+		conn.writeFlag = 0
+		t.poll.DisableWrite(conn.fd)
+	}
+}
+
+func (t *EventLoop) writeConn(conn *Conn, buffer *buf.Buffer) {
+	if !conn.Active() {
+		return
+	}
+
+	conn.out.Append(buffer)
+	buffer.Release()
+
+	if conn.out.ReadableBytes() == 0 || conn.writeFlag == 1 {
+		return
+	}
+
+	t.writeConn0(conn)
+
+	if conn.out.ReadableBytes() > 0 {
+		conn.writeFlag = 1
+		t.poll.EnableWrite(conn.fd)
+	}
+}
+
+func (t *EventLoop) writeConn0(conn *Conn) {
+	for i := 0; i < 8; i++ {
 		_, err := conn.out.ReadToFile(conn.fd)
 		if err != nil {
 			if err == unix.EAGAIN {
@@ -172,15 +192,10 @@ func (t *EventLoop) handleWriteConn(conn *Conn) {
 			t.deleteConn(conn)
 			return
 		}
-		//TODO handle write to a closed fd
-	}
 
-	if conn.out.ReadableBytes() == 0 {
-		err := t.poll.DisableWrite(conn.fd)
-		if err != nil {
-			//log.Printf("remove write failed: %v", err)
+		if conn.out.ReadableBytes() == 0 {
+			break
 		}
-		conn.writeFlag = 0
 	}
 }
 
