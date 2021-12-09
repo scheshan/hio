@@ -2,6 +2,7 @@ package buf
 
 import (
 	"errors"
+	"sync/atomic"
 )
 
 var bufferMinNodeSize = 8192
@@ -14,7 +15,7 @@ type Buffer struct {
 	tail        *node
 	size        int
 	minNodeSize int
-	ref         int
+	ref         int32
 }
 
 func (t *Buffer) addNewNode() {
@@ -128,12 +129,8 @@ func (t *Buffer) writeUInt64(n uint64) {
 }
 
 func (t *Buffer) Release() {
-	if t.ref <= 0 {
-		return
-	}
-
-	t.ref--
-	if t.ref > 0 {
+	ref := atomic.AddInt32(&t.ref, -1)
+	if ref != 0 {
 		return
 	}
 
@@ -149,5 +146,5 @@ func (t *Buffer) Release() {
 }
 
 func (t *Buffer) IncrRef() {
-	t.ref++
+	atomic.AddInt32(&t.ref, 1)
 }
