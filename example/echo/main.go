@@ -13,10 +13,10 @@ func main() {
 	opt.OnSessionCreated = func(conn *hio.Conn) {
 		log.Printf("connection[%v] created, bind to EventLoop[%v]", conn, conn.EventLoop().Id())
 	}
-	opt.OnSessionRead = func(conn *hio.Conn, buffer *buf.Buffer) {
+	opt.OnSessionRead = func(conn *hio.Conn, buffer *buf.Buffer) *buf.Buffer {
 		log.Printf("connection[%v] receive data: %v", conn, buffer.ReadableBytes())
-
-		conn.Write(buffer)
+		buffer.IncrRef()
+		return buffer
 	}
 	opt.OnSessionClosed = func(conn *hio.Conn) {
 		log.Printf("connection[%v] closed", conn)

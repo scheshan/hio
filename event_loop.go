@@ -142,7 +142,13 @@ func (t *EventLoop) handleConnRead(conn *Conn) {
 	}
 
 	if t.opt.OnSessionRead != nil {
-		t.opt.OnSessionRead(conn, b)
+		b := t.opt.OnSessionRead(conn, b)
+		if b != nil {
+			conn.out.Append(b)
+			b.Release()
+
+			t.handleConnWrite(conn)
+		}
 	}
 }
 

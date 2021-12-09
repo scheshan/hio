@@ -26,8 +26,9 @@ func main() {
 		LoadBalancer:     &hio.LoadBalancerRoundRobin{},
 		EventLoopNum:     loops,
 		OnSessionCreated: nil,
-		OnSessionRead: func(conn *hio.Conn, buffer *buf.Buffer) {
-			conn.Write(buffer)
+		OnSessionRead: func(conn *hio.Conn, buffer *buf.Buffer) *buf.Buffer {
+			buffer.IncrRef()
+			return buffer
 		},
 		OnSessionClosed: nil,
 	})
