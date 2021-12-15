@@ -29,7 +29,7 @@ function gobench() {
   $2 --port $4 --loops 4 &
 
   sleep 1
-  go run client/main.go -c 3000 -t 10 -m 8192 -a 127.0.0.1:$4
+  go run client/main.go -c 3000 -t 10 -m 16000 -a 127.0.0.1:$4
 
   pkill -9 $2 || printf ""
   echo "--- DONE ---"

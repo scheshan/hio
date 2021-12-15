@@ -51,7 +51,7 @@ func (t *bytesPool) get(size int) []byte {
 }
 
 func (t *bytesPool) put(data []byte) {
-	if t.isPowOf2(len(data)) {
+	if !t.isPowOf2(len(data)) {
 		return
 	}
 
