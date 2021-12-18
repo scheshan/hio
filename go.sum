@@ -1,7 +1,11 @@
 github.com/scheshan/buffer v0.0.0-20211216065353-b006a55d10b9 h1:k+YlVctHgA8whHX0e2YL3GWuh7UqkT1punTFlx7RkuI=
 github.com/scheshan/buffer v0.0.0-20211216065353-b006a55d10b9/go.mod h1:C8A4NAnuk7iRMqD8x2BYp+oRUaBODWm1y9/RgmjU+Dk=
+github.com/scheshan/buffer v0.0.0-20211218083250-82077e1ca644 h1:7q3mQg4+jGnH29tew50+BpaAFq9nkipTu79sLjgr56E=
+github.com/scheshan/buffer v0.0.0-20211218083250-82077e1ca644/go.mod h1:C8A4NAnuk7iRMqD8x2BYp+oRUaBODWm1y9/RgmjU+Dk=
 github.com/scheshan/poll v0.0.0-20211217102656-83bf64c73120 h1:6SZpzmc8GhglekQVC+oRs+ILWKyuw5IL9JSyDROnqms=
 github.com/scheshan/poll v0.0.0-20211217102656-83bf64c73120/go.mod h1:TzO7uGaWEBub62y3qbAJs46nK0hv1wkDCDwo6SV6okE=
+github.com/scheshan/poll v0.0.2 h1:alTXkpxuT0vGnhoek+X7tqg1BW6gMgrvRuyun1nYDfQ=
+github.com/scheshan/poll v0.0.2/go.mod h1:TzO7uGaWEBub62y3qbAJs46nK0hv1wkDCDwo6SV6okE=
 golang.org/x/sys v0.0.0-20211205182925-97ca703d548d h1:FjkYO/PPp4Wi0EAUOVLxePm7qVW4r4ctbWpURyuOD0E=
 golang.org/x/sys v0.0.0-20211205182925-97ca703d548d/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20211214234402-4825e8c3871d h1:1oIt9o40TWWI9FUaveVpUvBe13FNqBNVXy3ue2fcfkw=

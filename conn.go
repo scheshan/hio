@@ -2,7 +2,7 @@ package hio
 
 import (
 	"errors"
-	"github.com/scheshan/hio/buf"
+	"github.com/scheshan/buffer"
 	"golang.org/x/sys/unix"
 	"sync"
 	"sync/atomic"
@@ -15,29 +15,29 @@ type Conn struct {
 	sa        unix.Sockaddr
 	fd        int
 	writeFlag int32 // 0 normal, 1 listen for write events
-	out       *buf.Buffer
+	out       *buffer.Buffer
 	loop      *EventLoop
 	mutex     *sync.Mutex
 	state     int32 // 1 opened, 0 half closed, -1 error, -2 closed
 	attr      map[string]interface{}
 }
 
-func (t *Conn) Write(buffer *buf.Buffer) error {
-	if !t.Active() {
-		return ErrConnNonActive
-	}
-
-	buffer.IncrRef()
-
-	if buffer.ReadableBytes() > 0 {
-		t.loop.QueueEvent(func() {
-			t.loop.writeConn(t, buffer)
-			buffer.Release()
-		})
-	}
-
-	return nil
-}
+//func (t *Conn) Write(buffer *buffer.Buffer) error {
+//	if !t.Active() {
+//		return ErrConnNonActive
+//	}
+//
+//	buffer.IncrRef()
+//
+//	if buffer.Len() > 0 {
+//		t.loop.QueueEvent(func() {
+//			t.loop.writeConn(t, buffer)
+//			buffer.Release()
+//		})
+//	}
+//
+//	return nil
+//}
 
 func (t *Conn) EventLoop() *EventLoop {
 	return t.loop
@@ -52,7 +52,7 @@ func (t *Conn) Close() error {
 		return ErrConnNonActive
 	}
 
-	t.loop.QueueEvent(connEventFunc(t.loop.closeConn, t))
+	//t.loop.QueueEvent(connEventFunc(t.loop.closeConn, t))
 	return nil
 }
 
@@ -79,7 +79,7 @@ func newConn(id uint64, fd int, sa unix.Sockaddr) *Conn {
 	conn.sa = sa
 	conn.mutex = &sync.Mutex{}
 
-	conn.out = buf.NewBuffer()
+	conn.out = buffer.NewBuffer()
 	conn.attr = make(map[string]interface{})
 
 	return conn

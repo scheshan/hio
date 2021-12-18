@@ -2,7 +2,7 @@ package hio
 
 import (
 	"errors"
-	"github.com/scheshan/hio/poll"
+	"github.com/scheshan/poll"
 	"golang.org/x/sys/unix"
 	"log"
 	"runtime"
@@ -17,6 +17,7 @@ type tcpServer struct {
 	connId  uint64
 	loops   []*EventLoop
 	opt     ServerOptions
+	handler EventHandler
 }
 
 func (t *tcpServer) run() error {
@@ -98,7 +99,7 @@ func (t *tcpServer) initEventLoops() error {
 
 	t.loops = make([]*EventLoop, loopNum)
 	for i := 0; i < loopNum; i++ {
-		el, err := newEventLoop(uint64(i), t.opt)
+		el, err := newEventLoop(uint64(i), t.handler)
 		if err != nil {
 			return err
 		}
@@ -116,31 +117,29 @@ func (t *tcpServer) initEventLoops() error {
 
 func (t *tcpServer) loop() {
 	for t.running == 1 {
-		n, err := t.poller.Wait(poll.DefaultWaitMs)
-		if err != nil {
-			if err == unix.EAGAIN || err == unix.EINTR {
-				continue
-			}
-			t.shutdown()
-			return
-		}
-
-		for range n {
+		err := t.poller.Wait(30000, func(fd int, flag poll.Flag) error {
 			fd, sa, err := unix.Accept(t.lfd)
 			if err != nil {
 				if err == unix.EAGAIN || err == unix.EINTR {
-					continue
+					return nil
 				}
 				t.shutdown()
-				return
+				return err
 			}
 
 			t.connId++
 
 			conn := newConn(t.connId, fd, sa)
 			t.handleNewConn(conn)
+			return nil
+		})
+
+		if err != nil {
+			break
 		}
 	}
+
+	t.shutdown()
 }
 
 func (t *tcpServer) handleNewConn(conn *Conn) {

@@ -2,22 +2,36 @@ package hio
 
 import (
 	"errors"
-	"github.com/scheshan/hio/buf"
 	"golang.org/x/sys/unix"
 	"net"
+	"runtime"
 	"strconv"
 )
+
+type EventHandler struct {
+	SessionCreated func(conn *Conn)
+	SessionRead    func(conn *Conn, data []byte) []byte
+	SessionClosed  func(conn *Conn)
+}
 
 type Server interface {
 	Shutdown() error
 }
 
 type ServerOptions struct {
-	LoadBalancer     LoadBalancer
-	EventLoopNum     int
-	OnSessionCreated func(conn *Conn)
-	OnSessionRead    func(conn *Conn, buf *buf.Buffer) *buf.Buffer
-	OnSessionClosed  func(conn *Conn)
+	LoadBalancer LoadBalancer
+	EventLoopNum int
+}
+
+func (t ServerOptions) valid() error {
+	if t.LoadBalancer == nil {
+		return errors.New("invalid LoadBalancer")
+	}
+	if t.EventLoopNum <= 0 {
+		return errors.New("invalid EventLoop num")
+	}
+
+	return nil
 }
 
 func resolveIpAndPort(ip net.IP, port int) unix.Sockaddr {
@@ -97,7 +111,19 @@ func resolveAddr(addr string) (proto string, sa unix.Sockaddr, err error) {
 	//}
 }
 
-func Serve(addr string, opt ServerOptions) (Server, error) {
+func Serve(addr string, handler EventHandler) (Server, error) {
+	opt := ServerOptions{}
+	opt.LoadBalancer = &LoadBalancerRoundRobin{}
+	opt.EventLoopNum = runtime.NumCPU()
+
+	return ServeWithOptions(addr, handler, opt)
+}
+
+func ServeWithOptions(addr string, handler EventHandler, opt ServerOptions) (Server, error) {
+	if err := opt.valid(); err != nil {
+		return nil, err
+	}
+
 	proto, sa, err := resolveAddr(addr)
 	if err != nil {
 		return nil, err
@@ -105,16 +131,17 @@ func Serve(addr string, opt ServerOptions) (Server, error) {
 
 	switch proto {
 	case "tcp":
-		return serveTcp(sa, opt)
+		return serveTcp(sa, handler, opt)
 	default:
 		return nil, errors.New("Protocol " + proto + " not supported")
 	}
 }
 
-func serveTcp(sa unix.Sockaddr, opt ServerOptions) (Server, error) {
+func serveTcp(sa unix.Sockaddr, handler EventHandler, opt ServerOptions) (Server, error) {
 	srv := &tcpServer{}
 	srv.addr = sa
 	srv.opt = opt
+	srv.handler = handler
 
 	if err := srv.run(); err != nil {
 		return nil, err
