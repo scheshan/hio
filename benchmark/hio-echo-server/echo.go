@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"github.com/scheshan/hio"
-	"github.com/scheshan/hio/buf"
 	"strconv"
 	"time"
 )
@@ -22,15 +21,15 @@ func main() {
 	flag.IntVar(&loops, "loops", -1, "num loops")
 	flag.Parse()
 
-	hio.Serve(strconv.Itoa(port), hio.ServerOptions{
-		LoadBalancer:     &hio.LoadBalancerRoundRobin{},
-		EventLoopNum:     loops,
-		OnSessionCreated: nil,
-		OnSessionRead: func(conn *hio.Conn, buffer *buf.Buffer) *buf.Buffer {
-			buffer.IncrRef()
-			return buffer
+	handler := hio.EventHandler{
+		SessionRead: func(conn *hio.Conn, data []byte) []byte {
+			return data
 		},
-		OnSessionClosed: nil,
+	}
+
+	hio.ServeWithOptions(strconv.Itoa(port), handler, hio.ServerOptions{
+		LoadBalancer: &hio.LoadBalancerRoundRobin{},
+		EventLoopNum: loops,
 	})
 
 	<-time.After(1 * time.Hour)
