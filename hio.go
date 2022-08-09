@@ -18,6 +18,7 @@ type Options struct {
 	TcpNoDelay   bool
 	SndBuf       uint64
 	RcvBuf       uint64
+	LB           LoadBalancerType
 }
 
 type OptionsFunc func(opt *Options)
@@ -27,6 +28,7 @@ func Serve(addr string, handler EventHandler, optFunc ...OptionsFunc) error {
 		EventLoopNum: runtime.NumCPU(),
 		RcvBuf:       4096,
 		SndBuf:       4096,
+		LB:           RoundRobin,
 	}
 	for _, f := range optFunc {
 		f(options)

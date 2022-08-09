@@ -68,6 +68,8 @@ type server struct {
 	lfd      int
 	state    int32
 	poller   *poll.Poller
+	lb       loadBalancer
+	loops    []*eventLoop
 }
 
 func (t *server) Serve(addr string) error {
@@ -90,6 +92,17 @@ func (t *server) Serve(addr string) error {
 		}
 	}()
 	if err := t.configureSocket(); err != nil {
+		return err
+	}
+
+	t.configureLoadBalancer()
+
+	defer func() {
+		for _, loop := range t.loops {
+			loop.Shutdown()
+		}
+	}()
+	if err := t.configureEventLoop(t.options.EventLoopNum); err != nil {
 		return err
 	}
 
@@ -179,6 +192,29 @@ func (t *server) configureSocket() error {
 	return nil
 }
 
+func (t *server) configureLoadBalancer() {
+	switch t.options.LB {
+	case RoundRobin:
+		t.lb = &lbRoundRobin{}
+	case Random:
+		t.lb = &lbRandom{}
+	}
+}
+
+func (t *server) configureEventLoop(num int) error {
+	t.loops = make([]*eventLoop, num)
+
+	for i := 0; i < num; i++ {
+		if el, err := newEventLoop(t.handler); err != nil {
+			return err
+		} else {
+			t.loops[i] = el
+		}
+	}
+
+	return nil
+}
+
 func (t *server) accept() error {
 	for t.state == 0 {
 		err := t.poller.Wait(30000, t.accept0)
@@ -194,7 +230,7 @@ func (t *server) accept() error {
 }
 
 func (t *server) accept0(fd int, flag poll.Flag) error {
-	cfd, _, err := unix.Accept(t.lfd)
+	cfd, sa, err := unix.Accept(t.lfd)
 	if err != nil {
 		return err
 	}
@@ -219,8 +255,9 @@ func (t *server) accept0(fd int, flag poll.Flag) error {
 		}
 	}
 
-	unix.Write(cfd, []byte("hello world\r\n"))
-	unix.Close(cfd)
+	conn := newConn(cfd, sa)
+	loop := t.lb.Choose(t.loops)
+	loop.AddConn(conn)
 
 	return nil
 }
