@@ -209,6 +209,7 @@ func (t *server) configureEventLoop(num int) error {
 			return err
 		} else {
 			t.loops[i] = el
+			go el.Loop()
 		}
 	}
 

@@ -62,21 +62,73 @@ func (t *eventLoop) callback(fd int, flag poll.Flag) error {
 	}
 
 	if flag.CanRead() {
-		t.readConn(conn)
+		t.handleConnRead(conn)
 	}
 	if flag.CanWrite() {
-		t.writeConn(conn)
+		t.handleConnWrite(conn)
 	}
 
 	return nil
 }
 
-func (t *eventLoop) readConn(conn *conn) {
+func (t *eventLoop) handleConnRead(conn *conn) {
+	n, err := unix.Read(conn.fd, t.buf)
+	if err != nil {
+		if err != unix.EAGAIN && err != unix.EINTR {
+			t.closeConn(conn)
+			return
+		}
+	}
 
+	if n > 0 {
+		data := t.handler.ConnRead(conn, t.buf[:n])
+		if data != nil {
+			t.writeConn(conn, data)
+		}
+	}
 }
 
-func (t *eventLoop) writeConn(conn *conn) {
+func (t *eventLoop) handleConnWrite(conn *conn) {
+	if _, err := conn.out.ReadToFd(conn.fd); err != nil {
+		if err != unix.EAGAIN && err != unix.EINTR {
+			t.closeConn(conn)
+			return
+		}
+	}
 
+	if conn.out.Len() == 0 {
+		if err := t.poller.DisableWrite(conn.fd); err != nil {
+			t.closeConn(conn)
+			return
+		}
+	}
+}
+
+func (t *eventLoop) closeConn(conn *conn) {
+	t.poller.Delete(conn.fd)
+}
+
+func (t *eventLoop) writeConn(conn *conn, data []byte) {
+	if conn.out.Len() > 0 {
+		conn.out.Write(data)
+		return
+	}
+
+	n, err := unix.Write(conn.fd, data)
+	if err != nil {
+		if err != unix.EAGAIN && err != unix.EINTR {
+			t.closeConn(conn)
+			return
+		}
+	}
+
+	if n < len(data) {
+		conn.out.Write(data[n:])
+		if err := t.poller.EnableWrite(conn.fd); err != nil {
+			t.closeConn(conn)
+			return
+		}
+	}
 }
 
 func newEventLoop(handler EventHandler) (*eventLoop, error) {
