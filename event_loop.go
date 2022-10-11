@@ -1,8 +1,10 @@
 package hio
 
 import (
+	"fmt"
 	"github.com/scheshan/poll"
 	"golang.org/x/sys/unix"
+	"log"
 	"sync/atomic"
 )
 
@@ -18,6 +20,12 @@ type eventLoop struct {
 	state   int32
 	handler EventHandler
 	buf     []byte
+	tasks   *taskQueue
+	wakeup  int32
+}
+
+func (t *eventLoop) String() string {
+	return fmt.Sprintf("EventLoop-%v", t.id)
 }
 
 func (t *eventLoop) Loop() {
@@ -34,6 +42,8 @@ func (t *eventLoop) Loop() {
 		default:
 			return
 		}
+
+		t.handleTask()
 	}
 }
 
@@ -53,6 +63,20 @@ func (t *eventLoop) AddConn(conn *conn) {
 
 func (t *eventLoop) Shutdown() {
 
+}
+
+func (t *eventLoop) AddTask(fn func() error) {
+	t.tasks.Enqueue(fn)
+	if atomic.CompareAndSwapInt32(&t.wakeup, 0, 1) {
+		log.Printf("%s wakeup the poller", t)
+
+		if err := t.poller.Wakeup(); err != nil {
+			if err == unix.EAGAIN || err == unix.EINTR {
+				return
+			}
+			log.Fatalf("wakeup eventloop failed: %v", err)
+		}
+	}
 }
 
 func (t *eventLoop) callback(fd int, flag poll.Flag) error {
@@ -104,31 +128,65 @@ func (t *eventLoop) handleConnWrite(conn *conn) {
 	}
 }
 
+func (t *eventLoop) handleTask() {
+	if t.tasks.IsEmpty() {
+		return
+	}
+
+	log.Printf("%s process user tasks", t)
+
+	for !t.tasks.IsEmpty() {
+		if fn := t.tasks.Dequeue(); fn != nil {
+			if err := fn(); err != nil {
+				log.Printf("user action failed: %v", err)
+			}
+		}
+	}
+
+	if t.tasks.IsEmpty() {
+		atomic.StoreInt32(&t.wakeup, 0)
+	} else {
+		if err := t.poller.Wakeup(); err != nil {
+			if err == unix.EAGAIN || err == unix.EINTR {
+				return
+			}
+			log.Fatalf("wakeup eventloop failed: %v", err)
+		}
+	}
+}
+
 func (t *eventLoop) closeConn(conn *conn) {
 	t.poller.Delete(conn.fd)
 }
 
-func (t *eventLoop) writeConn(conn *conn, data []byte) {
-	if conn.out.Len() > 0 {
-		conn.out.Write(data)
-		return
+func (t *eventLoop) writeConn(conn *conn, data []byte) error {
+	var n int
+	var err error
+	if conn.out.Len() == 0 {
+		if n, err = unix.Write(conn.fd, data); err != nil {
+			if err != unix.EAGAIN && err != unix.EINTR {
+				t.closeConn(conn)
+				return err
+			}
+		}
 	}
 
-	n, err := unix.Write(conn.fd, data)
-	if err != nil {
-		if err != unix.EAGAIN && err != unix.EINTR {
-			t.closeConn(conn)
-			return
-		}
+	if n > 0 {
+		data = data[n:]
 	}
 
 	if n < len(data) {
-		conn.out.Write(data[n:])
-		if err := t.poller.EnableWrite(conn.fd); err != nil {
+		if _, err = conn.out.Write(data[n:]); err != nil {
 			t.closeConn(conn)
-			return
+			return err
+		}
+		if err = t.poller.EnableWrite(conn.fd); err != nil {
+			t.closeConn(conn)
+			return err
 		}
 	}
+
+	return nil
 }
 
 func newEventLoop(handler EventHandler) (*eventLoop, error) {
@@ -143,6 +201,7 @@ func newEventLoop(handler EventHandler) (*eventLoop, error) {
 		connMap: make(map[int]*conn),
 		handler: handler,
 		buf:     make([]byte, 4096),
+		tasks:   newTaskQueue(),
 	}
 
 	return el, nil

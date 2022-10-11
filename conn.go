@@ -13,6 +13,7 @@ type Conn interface {
 	fmt.Stringer
 	Id() uint64
 	Close()
+	Write(data []byte) error
 }
 
 type conn struct {
@@ -35,6 +36,14 @@ func (t *conn) Id() uint64 {
 
 func (t *conn) Close() {
 
+}
+
+func (t *conn) Write(data []byte) error {
+	t.loop.AddTask(func() error {
+		t.loop.writeConn(t, data)
+		return nil
+	})
+	return nil
 }
 
 func newConn(fd int, sa unix.Sockaddr) *conn {
