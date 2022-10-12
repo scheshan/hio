@@ -54,10 +54,6 @@ func newConn(fd int, sa unix.Sockaddr) *conn {
 		id: atomic.AddUint64(&connId, 1),
 		sa: sa,
 		fd: fd,
-		out: buffer.NewWithOptions(buffer.Options{
-			MinAllocSize: 4096,
-			MaxSize:      40960000,
-		}),
 	}
 	return c
 }

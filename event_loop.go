@@ -210,7 +210,7 @@ func (t *eventLoop) writeConn(conn *conn, data []byte) error {
 	return nil
 }
 
-func newEventLoop(handler EventHandler) (*eventLoop, error) {
+func newEventLoop(handler EventHandler, options *Options) (*eventLoop, error) {
 	poller, err := poll.NewPoller()
 	if err != nil {
 		return nil, err
@@ -221,7 +221,7 @@ func newEventLoop(handler EventHandler) (*eventLoop, error) {
 		poller:  poller,
 		connMap: make(map[int]*conn),
 		handler: handler,
-		buf:     make([]byte, 4096),
+		buf:     make([]byte, options.ReadBufferSize),
 		tasks:   newTaskQueue(),
 	}
 

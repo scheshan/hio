@@ -1,6 +1,7 @@
 package hio
 
 import (
+	"github.com/scheshan/buffer"
 	"github.com/scheshan/poll"
 	"golang.org/x/sys/unix"
 	"net"
@@ -169,13 +170,13 @@ func (t *server) configureSocket() error {
 			return err
 		}
 	}
-	if opt.RcvBuf > 0 {
-		if err := unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_RCVBUF, int(opt.RcvBuf)); err != nil {
+	if opt.TcpRcvBuf > 0 {
+		if err := unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_RCVBUF, int(opt.TcpRcvBuf)); err != nil {
 			return err
 		}
 	}
-	if opt.SndBuf > 0 {
-		if err := unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_SNDBUF, int(opt.SndBuf)); err != nil {
+	if opt.TcpSndBuf > 0 {
+		if err := unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_SNDBUF, int(opt.TcpSndBuf)); err != nil {
 			return err
 		}
 	}
@@ -205,7 +206,7 @@ func (t *server) configureEventLoop(num int) error {
 	t.loops = make([]*eventLoop, num)
 
 	for i := 0; i < num; i++ {
-		if el, err := newEventLoop(t.handler); err != nil {
+		if el, err := newEventLoop(t.handler, t.options); err != nil {
 			return err
 		} else {
 			t.loops[i] = el
@@ -240,13 +241,13 @@ func (t *server) accept0(fd int, flag poll.Flag) error {
 		unix.Close(cfd)
 		return nil
 	}
-	if t.options.RcvBuf > 0 {
-		if err := unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_RCVBUF, int(t.options.RcvBuf)); err != nil {
+	if t.options.TcpRcvBuf > 0 {
+		if err := unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_RCVBUF, int(t.options.TcpRcvBuf)); err != nil {
 			return err
 		}
 	}
-	if t.options.SndBuf > 0 {
-		if err := unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_SNDBUF, int(t.options.SndBuf)); err != nil {
+	if t.options.TcpSndBuf > 0 {
+		if err := unix.SetsockoptInt(t.lfd, unix.SOL_SOCKET, unix.SO_SNDBUF, int(t.options.TcpSndBuf)); err != nil {
 			return err
 		}
 	}
@@ -257,6 +258,11 @@ func (t *server) accept0(fd int, flag poll.Flag) error {
 	}
 
 	conn := newConn(cfd, sa)
+	conn.out = buffer.NewWithOptions(buffer.Options{
+		MinAllocSize: int(t.options.ReadBufferSize),
+		MaxSize:      int(t.options.WriteBufferCap),
+	})
+
 	loop := t.lb.Choose(t.loops)
 	loop.AddConn(conn)
 

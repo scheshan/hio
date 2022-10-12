@@ -12,26 +12,38 @@ type EventHandler struct {
 }
 
 type Options struct {
-	EventLoopNum int
-	ReuseAddr    bool
-	ReusePort    bool
-	TcpNoDelay   bool
-	SndBuf       uint64
-	RcvBuf       uint64
-	LB           LoadBalancerType
+	EventLoopNum   int
+	ReuseAddr      bool
+	ReusePort      bool
+	TcpNoDelay     bool
+	TcpSndBuf      uint64
+	TcpRcvBuf      uint64
+	WriteBufferCap uint64
+	ReadBufferSize uint64
+	LB             LoadBalancerType
+}
+
+func (t *Options) validate() error {
+	return nil
 }
 
 type OptionsFunc func(opt *Options)
 
 func Serve(addr string, handler EventHandler, optFunc ...OptionsFunc) error {
 	options := &Options{
-		EventLoopNum: runtime.NumCPU(),
-		RcvBuf:       4096,
-		SndBuf:       4096,
-		LB:           RoundRobin,
+		EventLoopNum:   runtime.NumCPU(),
+		TcpRcvBuf:      4096,
+		TcpSndBuf:      4096,
+		LB:             RoundRobin,
+		ReadBufferSize: 4096,
+		WriteBufferCap: 1024 * 1024,
 	}
 	for _, f := range optFunc {
 		f(options)
+	}
+
+	if err := options.validate(); err != nil {
+		return err
 	}
 
 	srv := new(server)
