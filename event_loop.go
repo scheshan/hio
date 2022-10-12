@@ -99,7 +99,7 @@ func (t *eventLoop) handleConnRead(conn *conn) {
 	n, err := unix.Read(conn.fd, t.buf)
 	if err != nil {
 		if err != unix.EAGAIN && err != unix.EINTR {
-			t.closeConn(conn)
+			t.closeConn(conn, err)
 			return
 		}
 	}
@@ -115,14 +115,14 @@ func (t *eventLoop) handleConnRead(conn *conn) {
 func (t *eventLoop) handleConnWrite(conn *conn) {
 	if _, err := conn.out.ReadToFd(conn.fd); err != nil {
 		if err != unix.EAGAIN && err != unix.EINTR {
-			t.closeConn(conn)
+			t.closeConn(conn, err)
 			return
 		}
 	}
 
 	if conn.out.Len() == 0 {
 		if err := t.poller.DisableWrite(conn.fd); err != nil {
-			t.closeConn(conn)
+			t.closeConn(conn, err)
 			return
 		}
 	}
@@ -155,8 +155,29 @@ func (t *eventLoop) handleTask() {
 	}
 }
 
-func (t *eventLoop) closeConn(conn *conn) {
-	t.poller.Delete(conn.fd)
+func (t *eventLoop) closeConn(conn *conn, err error) {
+	if err != nil {
+		log.Printf("%s close conn %s for reason: %v", t, conn, err)
+	} else {
+		log.Printf("%s close conn %s manually", t, conn)
+	}
+
+	for conn.out.Len() > 0 {
+		_, err := conn.out.ReadToFd(conn.fd)
+		if err != nil {
+			log.Printf("%s flush conn %s data failed: %v", t, conn, err)
+			break
+		}
+	}
+
+	if err := t.poller.Delete(conn.fd); err != nil {
+		log.Printf("%s unwatch conn %s failed: %v", t, conn, err)
+	}
+	if err := unix.Close(conn.fd); err != nil {
+		log.Printf("%s close conn %s socket failed: %v", t, conn, err)
+	}
+	delete(t.connMap, conn.fd)
+	conn.out.Release()
 }
 
 func (t *eventLoop) writeConn(conn *conn, data []byte) error {
@@ -165,7 +186,7 @@ func (t *eventLoop) writeConn(conn *conn, data []byte) error {
 	if conn.out.Len() == 0 {
 		if n, err = unix.Write(conn.fd, data); err != nil {
 			if err != unix.EAGAIN && err != unix.EINTR {
-				t.closeConn(conn)
+				t.closeConn(conn, err)
 				return err
 			}
 		}
@@ -177,11 +198,11 @@ func (t *eventLoop) writeConn(conn *conn, data []byte) error {
 
 	if n < len(data) {
 		if _, err = conn.out.Write(data[n:]); err != nil {
-			t.closeConn(conn)
+			t.closeConn(conn, err)
 			return err
 		}
 		if err = t.poller.EnableWrite(conn.fd); err != nil {
-			t.closeConn(conn)
+			t.closeConn(conn, err)
 			return err
 		}
 	}

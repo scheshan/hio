@@ -35,7 +35,10 @@ func (t *conn) Id() uint64 {
 }
 
 func (t *conn) Close() {
-
+	t.loop.AddTask(func() error {
+		t.loop.closeConn(t, nil)
+		return nil
+	})
 }
 
 func (t *conn) Write(data []byte) error {
