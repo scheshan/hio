@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/scheshan/poll"
 	"golang.org/x/sys/unix"
+	"io"
 	"log"
 	"sync/atomic"
 )
@@ -109,6 +110,8 @@ func (t *eventLoop) handleConnRead(conn *conn) {
 		if data != nil {
 			t.writeConn(conn, data)
 		}
+	} else {
+		t.closeConn(conn, io.EOF)
 	}
 }
 
@@ -178,6 +181,8 @@ func (t *eventLoop) closeConn(conn *conn, err error) {
 	}
 	delete(t.connMap, conn.fd)
 	conn.out.Release()
+
+	t.handler.ConnClose(conn, err)
 }
 
 func (t *eventLoop) writeConn(conn *conn, data []byte) error {

@@ -26,8 +26,7 @@ type conn struct {
 }
 
 func (t *conn) String() string {
-
-	return ""
+	return fmt.Sprintf("conn-%v", t.id)
 }
 
 func (t *conn) Id() uint64 {

@@ -8,7 +8,7 @@ type EventHandler struct {
 	Boot       func()
 	ConnCreate func(conn Conn)
 	ConnRead   func(conn Conn, data []byte) []byte
-	ConnClose  func(conn Conn)
+	ConnClose  func(conn Conn, err error)
 }
 
 type Options struct {
