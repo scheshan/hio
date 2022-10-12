@@ -3,6 +3,7 @@ package hio
 import (
 	"fmt"
 	"github.com/scheshan/buffer"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"sync/atomic"
 )
@@ -23,6 +24,7 @@ type conn struct {
 	loop *eventLoop
 	in   *buffer.Buffer
 	out  *buffer.Buffer
+	log  *log.Entry
 }
 
 func (t *conn) String() string {

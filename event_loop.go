@@ -3,9 +3,9 @@ package hio
 import (
 	"fmt"
 	"github.com/scheshan/poll"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"io"
-	"log"
 	"sync/atomic"
 )
 
@@ -23,6 +23,7 @@ type eventLoop struct {
 	buf     []byte
 	tasks   *taskQueue
 	wakeup  int32
+	log     *log.Entry
 }
 
 func (t *eventLoop) String() string {
@@ -48,14 +49,17 @@ func (t *eventLoop) Loop() {
 	}
 }
 
-func (t *eventLoop) AddConn(conn *conn) {
+func (t *eventLoop) addConn(conn *conn) {
 	if err := t.poller.Add(conn.fd); err != nil {
 		unix.Close(conn.fd)
 		return
 	}
 
 	conn.loop = t
+	conn.log = t.log.WithField("Conn", t.id)
 	t.connMap[conn.fd] = conn
+
+	conn.log.Print("new conn connected")
 
 	if t.handler.ConnCreate != nil {
 		t.handler.ConnCreate(conn)
@@ -69,13 +73,13 @@ func (t *eventLoop) Shutdown() {
 func (t *eventLoop) AddTask(fn func() error) {
 	t.tasks.Enqueue(fn)
 	if atomic.CompareAndSwapInt32(&t.wakeup, 0, 1) {
-		log.Printf("%s wakeup the poller", t)
+		t.log.Print("wakeup the poller")
 
 		if err := t.poller.Wakeup(); err != nil {
 			if err == unix.EAGAIN || err == unix.EINTR {
 				return
 			}
-			log.Fatalf("wakeup eventloop failed: %v", err)
+			t.log.Fatal("wakeup the poller failed: %v", err)
 		}
 	}
 }
@@ -136,12 +140,12 @@ func (t *eventLoop) handleTask() {
 		return
 	}
 
-	log.Printf("%s process user tasks", t)
+	t.log.Print("process user tasks")
 
 	for !t.tasks.IsEmpty() {
 		if fn := t.tasks.Dequeue(); fn != nil {
 			if err := fn(); err != nil {
-				log.Printf("user action failed: %v", err)
+				t.log.Printf("user action failed: %v", err)
 			}
 		}
 	}
@@ -153,31 +157,31 @@ func (t *eventLoop) handleTask() {
 			if err == unix.EAGAIN || err == unix.EINTR {
 				return
 			}
-			log.Fatalf("wakeup eventloop failed: %v", err)
+			t.log.Fatalf("wakeup eventloop failed: %v", err)
 		}
 	}
 }
 
 func (t *eventLoop) closeConn(conn *conn, err error) {
 	if err != nil {
-		log.Printf("%s close conn %s for reason: %v", t, conn, err)
+		conn.log.Printf("close conn for reason: %v", err)
 	} else {
-		log.Printf("%s close conn %s manually", t, conn)
+		conn.log.Printf("close conn manually")
 	}
 
 	for conn.out.Len() > 0 {
 		_, err := conn.out.ReadToFd(conn.fd)
 		if err != nil {
-			log.Printf("%s flush conn %s data failed: %v", t, conn, err)
+			conn.log.Printf("flush conn data failed: %v", err)
 			break
 		}
 	}
 
 	if err := t.poller.Delete(conn.fd); err != nil {
-		log.Printf("%s unwatch conn %s failed: %v", t, conn, err)
+		conn.log.Printf("unwatch conn failed: %v", err)
 	}
 	if err := unix.Close(conn.fd); err != nil {
-		log.Printf("%s close conn %s socket failed: %v", t, conn, err)
+		conn.log.Printf("close conn socket failed: %v", err)
 	}
 	delete(t.connMap, conn.fd)
 	conn.out.Release()
@@ -229,6 +233,7 @@ func newEventLoop(handler EventHandler, options *Options) (*eventLoop, error) {
 		buf:     make([]byte, options.ReadBufferSize),
 		tasks:   newTaskQueue(),
 	}
+	el.log = log.WithField("EventLoop", el.id)
 
 	return el, nil
 }

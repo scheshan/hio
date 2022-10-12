@@ -4,7 +4,6 @@ import (
 	"github.com/scheshan/buffer"
 	"github.com/scheshan/poll"
 	"golang.org/x/sys/unix"
-	"log"
 	"net"
 	"strings"
 )
@@ -265,9 +264,7 @@ func (t *server) accept0(fd int, flag poll.Flag) error {
 	})
 
 	loop := t.lb.Choose(t.loops)
-	loop.AddConn(conn)
-
-	log.Printf("new conn[%s] connected, bind to event-loop[%s]", conn, loop)
+	loop.addConn(conn)
 
 	return nil
 }
