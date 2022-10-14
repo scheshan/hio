@@ -163,6 +163,11 @@ func (t *eventLoop) handleTask() {
 }
 
 func (t *eventLoop) closeConn(conn *conn, err error) {
+	if t.state == -2 {
+		return
+	}
+	conn.state = -2
+
 	if err != nil {
 		conn.log.Printf("close conn for reason: %v", err)
 	} else {
