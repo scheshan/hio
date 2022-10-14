@@ -16,7 +16,8 @@ type Conn interface {
 	Id() uint64
 	Close()
 	Write(data []byte) error
-	Active() bool
+	IsActive() bool
+	EventLoop() EventLoop
 }
 
 type conn struct {
@@ -50,7 +51,7 @@ func (t *conn) Close() {
 }
 
 func (t *conn) Write(data []byte) error {
-	if !t.Active() {
+	if !t.IsActive() {
 		return errors.New("conn is disconnected")
 	}
 
@@ -61,8 +62,12 @@ func (t *conn) Write(data []byte) error {
 	return nil
 }
 
-func (t *conn) Active() bool {
+func (t *conn) IsActive() bool {
 	return atomic.LoadInt32(&t.state) == 0
+}
+
+func (t *conn) EventLoop() EventLoop {
+	return t.loop
 }
 
 func newConn(fd int, sa unix.Sockaddr) *conn {
